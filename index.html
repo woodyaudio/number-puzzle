@@ -101,15 +101,9 @@
         let currentLevel = 1;
         let isDragging = false;
         
-        // 랜덤 색상 목록
         const lineColors = [
-            'rgba(52, 152, 219, 0.6)',   // 파랑
-            'rgba(241, 196, 15, 0.6)',   // 노랑
-            'rgba(231, 76, 60, 0.6)',    // 빨강
-            'rgba(46, 204, 113, 0.6)',   // 초록
-            'rgba(230, 126, 34, 0.6)',   // 주황
-            'rgba(255, 105, 180, 0.6)',  // 분홍
-            'rgba(155, 89, 182, 0.6)'    // 보라
+            'rgba(52, 152, 219, 0.6)', 'rgba(241, 196, 15, 0.6)', 'rgba(231, 76, 60, 0.6)', 
+            'rgba(46, 204, 113, 0.6)', 'rgba(230, 126, 34, 0.6)', 'rgba(255, 105, 180, 0.6)', 'rgba(155, 89, 182, 0.6)'
         ];
 
         const gameState = {
@@ -123,7 +117,26 @@
             if (!userName) return alert("닉네임을 입력하세요!");
             document.getElementById('user-display').innerText = `플레이어: ${userName}`;
             document.getElementById('start-modal').style.display = 'none';
+            
+            initWinnerDisplay(); // 입장하자마자 모든 난이도 1위 정보 감시 시작
             switchLevel(1);
+        }
+
+        // 모든 난이도의 1위 닉네임을 상시 업데이트하는 함수
+        function initWinnerDisplay() {
+            [1, 2, 3].forEach(lvl => {
+                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(15).on('value', snap => {
+                    let items = [];
+                    snap.forEach(child => {
+                        if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()});
+                    });
+                    items.sort((a,b) => b.score - a.score);
+                    const winEl = document.getElementById(`winner-${lvl}`);
+                    if(winEl) {
+                        winEl.innerText = items.length > 0 ? items[0].name : "-";
+                    }
+                });
+            });
         }
 
         function switchLevel(level) {
@@ -144,8 +157,6 @@
             const size = config.gridSize; const total = size * size;
             let successPath = null;
             const directions = [[0,1], [0,-1], [1,0], [-1,0]];
-            
-            // 새 게임 생성 시 랜덤 색상 배정
             config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
 
             function findPath() {
@@ -182,25 +193,18 @@
             const gridEl = document.getElementById('grid');
             gridEl.innerHTML = '';
             gridEl.style.gridTemplateColumns = `repeat(${config.gridSize}, var(--cell-size))`;
-            
             config.boardData.forEach((val, i) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell' + (val ? ' target' : '');
                 cell.textContent = val;
-                
                 const startAction = (e) => {
-                    if(val == "1") {
-                        isDragging = true;
-                        config.currentPath = [i];
-                        drawLine();
-                    }
+                    if(val == "1") { isDragging = true; config.currentPath = [i]; drawLine(); }
                 };
                 cell.onmousedown = startAction;
                 cell.ontouchstart = (e) => { startAction(e); };
                 cell.onmouseenter = () => { if(isDragging) extendPath(i); };
                 gridEl.appendChild(cell);
             });
-
             gridEl.ontouchmove = (e) => {
                 if (!isDragging) return;
                 const touch = e.touches[0];
@@ -210,17 +214,13 @@
                     if(idx !== -1) extendPath(idx);
                 }
             };
-            
             setTimeout(resizeCanvas, 50);
         }
 
         function extendPath(idx) {
             const config = gameState[currentLevel];
             if (config.currentPath.includes(idx)) {
-                if (config.currentPath[config.currentPath.length - 2] === idx) {
-                    config.currentPath.pop();
-                    drawLine();
-                }
+                if (config.currentPath[config.currentPath.length - 2] === idx) { config.currentPath.pop(); drawLine(); }
                 return;
             }
             const last = config.currentPath[config.currentPath.length - 1];
@@ -240,12 +240,10 @@
             const config = gameState[currentLevel];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!config.currentPath.length) return;
-            
             ctx.beginPath();
-            ctx.strokeStyle = config.lineColor; // 랜덤으로 배정된 색상 사용
+            ctx.strokeStyle = config.lineColor;
             ctx.lineWidth = config.gridSize === 3 ? 35 : config.gridSize === 5 ? 22 : 14;
             ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-            
             const cells = document.getElementById('grid').children;
             config.currentPath.forEach((idx, i) => {
                 const el = cells[idx];
@@ -261,7 +259,6 @@
             const cells = document.getElementById('grid').children;
             const lastVal = cells[config.currentPath[config.currentPath.length-1]].textContent;
             const max = Math.max(...Array.from(cells).map(c => parseInt(c.textContent) || 0));
-            
             if (lastVal == max && config.currentPath.length === config.gridSize * config.gridSize) {
                 isDragging = false;
                 setTimeout(() => {
@@ -282,7 +279,6 @@
         function updateRankDisplay() {
             const list = document.getElementById('rank-list');
             document.getElementById('rank-title').innerText = `${currentLevel} 난이도 실시간 랭킹`;
-            
             db.ref(`scores/level${currentLevel}`).orderByValue().limitToLast(10).on('value', snap => {
                 list.innerHTML = '';
                 let items = [];
@@ -293,13 +289,7 @@
                     if (i === 0) { medal = "👑"; colorClass = "gold"; }
                     else if (i === 1) { medal = "🥈"; colorClass = "silver"; }
                     else if (i === 2) { medal = "🥉"; colorClass = "bronze"; }
-                    
                     list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${medal} ${item.name}</span><span>${item.score}회</span></div>`;
-                    
-                    if(i === 0) {
-                        const win = document.getElementById(`winner-${currentLevel}`);
-                        if(win) win.innerText = item.name;
-                    }
                 });
                 if(items.length === 0) list.innerHTML = "기록이 없습니다.";
             });
