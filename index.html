@@ -1,0 +1,85 @@
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+    // 1. 여기에 Firebase 콘솔에서 복사한 본인의 설정을 붙여넣으세요!
+const firebaseConfig = {
+  apiKey: "AIzaSyB_NUeTdKb8amEQgpIiH2s01EvOw0fywOE",
+  authDomain: "project-number-2e9c8.firebaseapp.com",
+  databaseURL: "https://project-number-2e9c8-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "project-number-2e9c8",
+  storageBucket: "project-number-2e9c8.firebasestorage.app",
+  messagingSenderId: "419237880538",
+  appId: "1:419237880538:web:5055d7133ef62bab23fbe3",
+  measurementId: "G-V2XXPMSD0K"
+};
+
+    // Firebase 초기화
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // 2. 점수 저장 함수 (통합 서버 저장)
+    function saveScore(name, level) {
+        // 기존 localStorage 대신 Firebase에 저장
+        // 닉네임 중 특수문자 제거 (Firebase 경로 문제 방지)
+        const safeName = name.replace(/[.#$[\]]/g, "_");
+        const userScoreRef = db.ref(`scores/level${level}/${safeName}`);
+
+        userScoreRef.once('value', (snapshot) => {
+            const currentCount = snapshot.val() || 0;
+            userScoreRef.set(currentCount + 1); // 승리 횟수 1 증가
+        });
+    }
+
+    // 3. 랭킹 불러오기 함수 (실시간 동기화)
+    function updateRankDisplay() {
+        const levelKey = 'level' + currentLevel;
+        const rankTitle = document.getElementById('rank-title');
+        const rankList = document.getElementById('rank-list');
+        const winnerSpan = document.getElementById(`winner-${currentLevel}`);
+
+        rankTitle.innerText = `${currentLevel}단계 랭킹 (실시간)`;
+
+        // Firebase에서 해당 레벨의 점수를 실시간으로 감시
+        db.ref(`scores/${levelKey}`).orderByValue().limitToLast(10).on('value', (snapshot) => {
+            const data = snapshot.val();
+            const sorted = [];
+            for (let name in data) {
+                sorted.push([name, data[name]]);
+            }
+            // 내림차순 정렬
+            sorted.sort((a, b) => b[1] - a[1]);
+
+            rankList.innerHTML = sorted.length ? '' : '<div style="font-size:0.8rem; opacity:0.5;">기록이 없습니다.</div>';
+            
+            sorted.forEach((item, index) => {
+                let crown = index === 0 ? "👑" : index === 1 ? "🥈" : index === 2 ? "🥉" : (index + 1) + ".";
+                let colorClass = index === 0 ? "gold" : index === 1 ? "silver" : index === 2 ? "bronze" : "";
+                
+                // 1등 전광판 업데이트 (현재 보고 있는 레벨의 1등)
+                if (index === 0) {
+                    document.getElementById(`winner-${currentLevel}`).innerText = item[0];
+                }
+
+                rankList.innerHTML += `
+                    <div class="rank-item">
+                        <span class="${colorClass}"><i class="crown">${crown}</i>${item[0]}</span>
+                        <span>${item[1]}회</span>
+                    </div>`;
+            });
+        });
+        
+        // 모든 레벨의 1등 이름 초기화 (버튼 옆 표시용)
+        [1, 2, 3].forEach(lvl => {
+            db.ref(`scores/level${lvl}`).orderByValue().limitToLast(1).once('value', (snap) => {
+                const d = snap.val();
+                if(d) {
+                    const name = Object.keys(d)[0];
+                    document.getElementById(`winner-${lvl}`).innerText = name;
+                }
+            });
+        });
+    }
+
+    // ... 나머지 게임 로직(generateBoard, drawLine 등)은 이전과 동일하게 유지 ...
+</script>
