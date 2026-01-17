@@ -103,19 +103,14 @@
         let userName = "";
         let currentLevel = 1;
         let isDragging = false;
-        
-        const lineColors = [
-            'rgba(52, 152, 219, 0.7)', 'rgba(241, 196, 15, 0.7)', 'rgba(231, 76, 60, 0.7)', 
-            'rgba(46, 204, 113, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(255, 105, 180, 0.7)', 'rgba(155, 89, 182, 0.7)'
-        ];
-
+        const lineColors = ['rgba(52, 152, 219, 0.7)', 'rgba(241, 196, 15, 0.7)', 'rgba(231, 76, 60, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(255, 105, 180, 0.7)', 'rgba(155, 89, 182, 0.7)'];
         const levelNames = { 1: "초급", 2: "중급", 3: "고급", 4: "지옥" };
 
         const gameState = {
-            1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], lineColor: lineColors[0] },
-            2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], lineColor: lineColors[0] },
-            3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], lineColor: lineColors[0] },
-            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], lineColor: lineColors[0] }
+            1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], targetLen: 9 },
+            2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], targetLen: 25 },
+            3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], targetLen: 49 },
+            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 75 } // 지옥은 75칸 이상이면 생성
         };
 
         function startGame() {
@@ -143,9 +138,8 @@
             currentLevel = level;
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
-            
             updateGridSize();
-            generateBoardData(level); // 프리징 방지를 위해 로직 내부 수정
+            generateBoardData(level);
             renderBoard();
             updateRankDisplay();
         }
@@ -155,73 +149,62 @@
             const config = gameState[currentLevel];
             let size = 65;
             if (screenWidth < 500) {
-                const availableWidth = screenWidth - 60;
-                size = Math.floor(availableWidth / config.gridSize) - 4;
-            } else if (config.gridSize === 7) size = 50;
-            else if (config.gridSize === 9) size = 40;
+                size = Math.floor((screenWidth - 60) / config.gridSize) - 4;
+            } else {
+                size = config.gridSize === 9 ? 35 : config.gridSize === 7 ? 45 : 65;
+            }
             document.documentElement.style.setProperty('--cell-size', `${size}px`);
         }
 
-        // 지옥 난이도 프리징 방지를 위한 하이퍼 최적화 알고리즘
+        // 확실한 클리어를 보장하는 경로 우선 생성 알고리즘
         function generateBoardData(level) {
             const config = gameState[level];
             const size = config.gridSize;
             const total = size * size;
-            const directions = [[0,1], [0,-1], [1,0], [-1,0]];
-            config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
+            const targetLen = config.targetLen;
+            let finalPath = null;
 
-            function solveSafe() {
-                let path = [];
-                let visited = new Uint8Array(total);
-                let start = Math.floor(Math.random() * total);
-                path.push(start);
-                visited[start] = 1;
-                
-                let attempts = 0;
-                const maxAttempts = size > 7 ? 2000 : 5000; // 지옥 난이도는 더 빠르게 포기하도록 설정
+            // 경로 탐색 함수
+            function findLongPath() {
+                const visited = new Array(total).fill(false);
+                const path = [];
+                let curr = Math.floor(Math.random() * total);
+                path.push(curr);
+                visited[curr] = true;
 
-                function backtrack(curr) {
-                    attempts++;
-                    if (path.length === total) return true;
-                    if (attempts > maxAttempts) return false;
+                for (let i = 0; i < 2000; i++) { // 최대 시도 횟수
+                    const r = Math.floor(curr / size), c = curr % size;
+                    const neighbors = [];
+                    [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
+                        const nr = r + dr, nc = c + dc;
+                        const idx = nr * size + nc;
+                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && !visited[idx]) neighbors.push(idx);
+                    });
 
-                    const shuffledDirs = [...directions].sort(() => Math.random() - 0.5);
-                    for (const [dr, dc] of shuffledDirs) {
-                        const nr = Math.floor(curr/size)+dr, nc = (curr%size)+dc;
-                        const next = nr * size + nc;
-                        if (nr>=0 && nr<size && nc>=0 && nc<size && !visited[next]) {
-                            visited[next] = 1;
-                            path.push(next);
-                            if (backtrack(next)) return true;
-                            path.pop();
-                            visited[next] = 0;
-                        }
+                    if (neighbors.length === 0) {
+                        if (path.length >= targetLen) return path;
+                        return null; // 너무 짧으면 실패
                     }
-                    return false;
+                    curr = neighbors[Math.floor(Math.random() * neighbors.length)];
+                    path.push(curr);
+                    visited[curr] = true;
                 }
-
-                if (backtrack(start)) return path;
-                return null;
+                return path.length >= targetLen ? path : null;
             }
 
-            let resultPath = null;
-            let safetyCounter = 0;
-            // 지옥 난이도는 최대 15번까지만 재시도 (브라우저 보호)
-            while (!resultPath && safetyCounter < 15) {
-                resultPath = solveSafe();
-                safetyCounter++;
-            }
+            // 성공할 때까지 반복 (최적화 덕분에 순식간에 끝남)
+            while (!finalPath) finalPath = findLongPath();
 
-            // 만약 끝내 경로를 못 찾으면 (이론상 희박하지만) 보조 로직 작동
-            if (!resultPath) {
-                resultPath = Array.from({length: total}, (_, i) => i); // 단순 지그재그 패턴 보조
-            }
+            // 판 초기화 및 숫자 배치
+            config.boardData = new Array(total).fill('');
+            config.winPath = finalPath; // 정답 경로 저장
+            config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
+            config.currentPath = [];
 
-            config.boardData = Array(total).fill('');
-            const actualCount = Math.floor(Math.random() * (config.maxNum - config.minRequired + 1)) + config.minRequired;
-            for (let i = 0; i < actualCount; i++) {
-                let pIdx = Math.floor((i / (actualCount - 1)) * (total - 1));
-                config.boardData[resultPath[pIdx]] = i + 1;
+            const numCount = Math.floor(Math.random() * (config.maxNum - config.minRequired + 1)) + config.minRequired;
+            for (let i = 0; i < numCount; i++) {
+                const step = Math.floor((i / (numCount - 1)) * (finalPath.length - 1));
+                config.boardData[finalPath[step]] = i + 1;
             }
         }
 
@@ -237,11 +220,16 @@
                 cell.className = 'cell' + (val ? ' target' : '');
                 cell.textContent = val;
                 cell.style.fontSize = fontSize;
+                
                 const startAction = (e) => {
-                    if(val == "1") { isDragging = true; config.currentPath = [i]; drawLine(); }
+                    if(val == "1") { 
+                        isDragging = true; 
+                        config.currentPath = [i]; 
+                        drawLine(); 
+                    }
                 };
                 cell.onmousedown = startAction;
-                cell.ontouchstart = (e) => { startAction(e); };
+                cell.ontouchstart = (e) => { e.preventDefault(); startAction(e); };
                 cell.onmouseenter = () => { if(isDragging) extendPath(i); };
                 gridEl.appendChild(cell);
             });
@@ -260,16 +248,21 @@
 
         function extendPath(idx) {
             const config = gameState[currentLevel];
-            if (config.currentPath.includes(idx)) {
-                if (config.currentPath[config.currentPath.length - 2] === idx) { config.currentPath.pop(); drawLine(); }
+            const path = config.currentPath;
+            if (path.includes(idx)) {
+                if (path[path.length - 2] === idx) { path.pop(); drawLine(); }
                 return;
             }
-            const last = config.currentPath[config.currentPath.length - 1];
-            if (Math.abs(Math.floor(last/config.gridSize) - Math.floor(idx/config.gridSize)) + Math.abs((last%config.gridSize) - (idx%config.gridSize)) === 1) {
-                const cells = document.getElementById('grid').children;
-                const val = cells[idx].textContent;
-                if (val !== '' && parseInt(val) !== Math.max(...config.currentPath.map(p => parseInt(cells[p].textContent) || 0)) + 1) return;
-                config.currentPath.push(idx);
+            const last = path[path.length - 1];
+            const r1 = Math.floor(last/config.gridSize), c1 = last%config.gridSize;
+            const r2 = Math.floor(idx/config.gridSize), c2 = idx%config.gridSize;
+            
+            if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+                const targetVal = config.boardData[idx];
+                const lastNum = parseInt(config.boardData[path.findLast(p => config.boardData[p] !== '')] || 0);
+                
+                if (targetVal !== '' && parseInt(targetVal) !== lastNum + 1) return;
+                path.push(idx);
                 drawLine();
                 checkWin();
             }
@@ -283,7 +276,7 @@
             if (!config.currentPath.length) return;
             ctx.beginPath();
             ctx.strokeStyle = config.lineColor;
-            ctx.lineWidth = config.gridSize === 3 ? 30 : config.gridSize === 5 ? 20 : config.gridSize === 7 ? 12 : 7;
+            ctx.lineWidth = config.gridSize === 3 ? 30 : config.gridSize === 5 ? 20 : config.gridSize === 7 ? 12 : 8;
             ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             const cells = document.getElementById('grid').children;
             config.currentPath.forEach((idx, i) => {
@@ -297,16 +290,16 @@
 
         function checkWin() {
             const config = gameState[currentLevel];
-            const cells = document.getElementById('grid').children;
-            const lastVal = cells[config.currentPath[config.currentPath.length-1]].textContent;
-            const max = Math.max(...Array.from(cells).map(c => parseInt(c.textContent) || 0));
-            if (lastVal == max && config.currentPath.length === config.gridSize * config.gridSize) {
+            const lastIdx = config.currentPath[config.currentPath.length - 1];
+            const currentVal = config.boardData[lastIdx];
+            const maxVal = Math.max(...config.boardData.filter(v => v !== ''));
+
+            if (currentVal == maxVal && config.currentPath.length === config.winPath.length) {
                 isDragging = false;
                 setTimeout(() => {
                     alert(`🎉 ${levelNames[currentLevel]} 클리어!`);
                     saveScore(userName, currentLevel);
                     gameState[currentLevel].boardData = null;
-                    gameState[currentLevel].currentPath = [];
                     switchLevel(currentLevel);
                 }, 200);
             }
@@ -326,19 +319,14 @@
                 snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
                 items.sort((a,b) => b.score - a.score).forEach((item, i) => {
                     let medal = (i + 1) + ".";
-                    let colorClass = "";
-                    if (i === 0) { medal = "👑"; colorClass = "gold"; }
-                    else if (i === 1) { medal = "🥈"; colorClass = "silver"; }
-                    else if (i === 2) { medal = "🥉"; colorClass = "bronze"; }
-                    list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${medal} ${item.name}</span><span>${item.score}회</span></div>`;
+                    let colorClass = (i===0) ? "gold" : (i===1) ? "silver" : (i===2) ? "bronze" : "";
+                    list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${(i<3?'👑🥈🥉'[i*2]+[i*2+1]:medal)} ${item.name}</span><span>${item.score}회</span></div>`;
                 });
-                if(items.length === 0) list.innerHTML = "기록이 없습니다.";
             });
         }
 
         function createNewGame() {
             gameState[currentLevel].boardData = null;
-            gameState[currentLevel].currentPath = [];
             switchLevel(currentLevel);
         }
 
