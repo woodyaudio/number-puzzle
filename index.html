@@ -37,7 +37,6 @@
     <div id="start-modal">
         <div class="modal-content">
             <h1>Woody's Puzzle</h1>
-            <p>닉네임을 입력하고 랭킹 1위에 도전하세요!</p>
             <input type="text" id="nickname-input" placeholder="닉네임 (최대 8자)" maxlength="8">
             <button class="start-btn" onclick="startGame()">입장하기</button>
         </div>
@@ -59,7 +58,6 @@
 
         <div class="sidebar">
             <div class="control-panel">
-                <div style="font-size:0.8rem; opacity:0.7; text-align:left;">난이도 및 실시간 1위</div>
                 <div class="difficulty-wrapper">
                     <button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">3단계 (7x7)</button>
                     <div class="level-winner">👑 <span id="winner-3" class="winner-name">-</span></div>
@@ -75,14 +73,13 @@
                 <button class="new-game-btn" onclick="createNewGame()">새로운 문제</button>
             </div>
             <div class="rank-panel">
-                <div id="rank-title" class="rank-title">랭킹 불러오는 중...</div>
+                <div id="rank-title" class="rank-title">실시간 랭킹</div>
                 <div id="rank-list"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // 사용자 Firebase 설정값
         const firebaseConfig = {
             apiKey: "AIzaSyB_NUeTdKb8amEQgpIiH2s01EvOw0fywOE",
             authDomain: "project-number-2e9c8.firebaseapp.com",
@@ -123,44 +120,63 @@
             });
         }
 
-        // 랭킹 표시 함수 (Dev_Test 제외 로직 포함)
+        // 랭킹 표시 함수 (강력 필터링 버전)
         function updateRankDisplay() {
             const levelKey = 'level' + currentLevel;
             document.getElementById('rank-title').innerText = `${currentLevel}단계 랭킹 (실시간)`;
             
-            db.ref(`scores/${levelKey}`).orderByValue().limitToLast(15).on('value', (snapshot) => {
+            db.ref(`scores/${levelKey}`).orderByValue().on('value', (snapshot) => {
                 const data = snapshot.val();
-                const sorted = [];
+                let sorted = [];
                 for (let key in data) {
-                    if (key === "Dev_Test") continue; // 필터링: Dev_Test 제외
-                    sorted.push([key, data[key]]);
+                    // ★ 제외 로직 ★
+                    if (key === "Dev_Test") continue; 
+                    sorted.push({ name: key, score: data[key] });
                 }
-                sorted.sort((a, b) => b[1] - a[1]);
+                
+                // 점수 기준 내림차순 정렬
+                sorted.sort((a, b) => b.score - a.score);
+                
+                // 랭킹 리스트 출력 (상위 10명)
+                const rankList = document.getElementById('rank-list');
+                rankList.innerHTML = '';
                 
                 const top10 = sorted.slice(0, 10);
-                const rankList = document.getElementById('rank-list');
-                rankList.innerHTML = top10.length ? '' : '<div style="opacity:0.5;">기록이 없습니다.</div>';
-                
+                if (top10.length === 0) {
+                    rankList.innerHTML = '<div style="opacity:0.5;">기록이 없습니다.</div>';
+                }
+
                 top10.forEach((item, index) => {
                     let crown = index === 0 ? "👑" : index === 1 ? "🥈" : index === 2 ? "🥉" : (index + 1) + ".";
                     let colorClass = index === 0 ? "gold" : index === 1 ? "silver" : index === 2 ? "bronze" : "";
-                    if (index === 0) document.getElementById(`winner-${currentLevel}`).innerText = item[0];
-                    rankList.innerHTML += `<div class="rank-item"><span class="${colorClass}">${crown} ${item[0]}</span><span>${item[1]}회</span></div>`;
+                    
+                    // 1등 이름 전광판 업데이트
+                    if (index === 0) document.getElementById(`winner-${currentLevel}`).innerText = item.name;
+
+                    rankList.innerHTML += `
+                        <div class="rank-item">
+                            <span class="${colorClass}">${crown} ${item.name}</span>
+                            <span>${item.score}회</span>
+                        </div>`;
                 });
             });
 
+            // 각 단계별 버튼 옆 실시간 1위 전용 업데이트
             [1, 2, 3].forEach(lvl => {
-                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(5).on('value', (snap) => {
+                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(10).on('value', (snap) => {
                     const d = snap.val();
                     if(d) {
-                        const names = Object.keys(d).filter(name => name !== "Dev_Test");
-                        if(names.length > 0) document.getElementById(`winner-${lvl}`).innerText = names[names.length - 1];
+                        let filtered = Object.keys(d).filter(n => n !== "Dev_Test");
+                        if(filtered.length > 0) {
+                            document.getElementById(`winner-${lvl}`).innerText = filtered[filtered.length - 1];
+                        } else {
+                            document.getElementById(`winner-${lvl}`).innerText = "-";
+                        }
                     }
                 });
             });
         }
 
-        // --- 게임 핵심 로직 ---
         function switchLevel(level) {
             currentLevel = level;
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
