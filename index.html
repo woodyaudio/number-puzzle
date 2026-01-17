@@ -2,35 +2,47 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Woody's Number Puzzle</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <style>
         :root { --primary-color: #3498db; --bg-color: #2c3e50; --cell-size: 70px; --gold: #f1c40f; --silver: #bdc3c7; --bronze: #e67e22; }
-        body { font-family: 'Pretendard', sans-serif; text-align: center; background: var(--bg-color); touch-action: manipulation; margin: 0; padding: 10px; color: white; overflow-x: hidden; }
-        #start-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: white; color: #333; padding: 30px; border-radius: 25px; width: 85%; max-width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        /* 모바일 기본 동작 설정 */
+        body { font-family: 'Pretendard', sans-serif; text-align: center; background: var(--bg-color); margin: 0; padding: 10px; color: white; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+        
+        #start-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
+        .modal-content { background: white; color: #333; padding: 30px; border-radius: 25px; width: 85%; max-width: 320px; }
         .modal-content input { width: 80%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 10px; text-align: center; font-size: 1rem; }
-        .start-btn { background: var(--primary-color); color: white; border: none; padding: 12px 40px; border-radius: 30px; font-size: 1.1rem; font-weight: bold; cursor: pointer; }
+        
         .main-layout { display: flex; justify-content: center; align-items: flex-start; gap: 20px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; }
-        #grid-container { position: relative; background: #ecf0f1; padding: 15px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); touch-action: none; }
-        #grid { display: grid; gap: 8px; position: relative; z-index: 1; }
-        .cell { width: var(--cell-size); height: var(--cell-size); background: #ffffff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 800; color: #34495e; user-select: none; pointer-events: auto; }
+        
+        /* 게임판 영역만 스크롤/터치 간섭 방지 */
+        #grid-container { position: relative; background: #ecf0f1; padding: 15px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); touch-action: none; margin: 0 auto; display: inline-block; }
+        #grid { display: grid; gap: 8px; position: relative; z-index: 5; }
+        
+        .cell { width: var(--cell-size); height: var(--cell-size); background: #ffffff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 800; color: #34495e; user-select: none; }
         .cell.target { color: var(--primary-color); border: 2px solid #d6eaf8; box-sizing: border-box; }
+        
         canvas { position: absolute; top: 15px; left: 15px; pointer-events: none; z-index: 10; }
+        
         .sidebar { min-width: 280px; display: flex; flex-direction: column; gap: 15px; }
         .control-panel, .rank-panel { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 20px; }
+        
+        /* 버튼 스타일 강화 (모바일 터치 영역 확보) */
+        button { cursor: pointer; border: none; font-family: inherit; transition: transform 0.1s; touch-action: manipulation; }
+        button:active { transform: scale(0.95); }
+        
         .difficulty-wrapper { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
-        .difficulty-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; cursor: pointer; font-size: 0.9rem; -webkit-tap-highlight-color: transparent; }
+        .difficulty-btn { flex: 1; padding: 15px 10px; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; font-size: 0.9rem; }
         .difficulty-btn.active { background: var(--primary-color); box-shadow: 0 0 10px var(--primary-color); }
-        .level-winner { font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 4px 6px; border-radius: 8px; min-width: 80px; text-align: center; }
-        .winner-name { color: var(--gold); display: block; font-weight: bold; }
-        .rank-title { font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 5px; }
-        .rank-item { display: flex; justify-content: space-between; padding: 6px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .gold { color: var(--gold); } .silver { color: var(--silver); } .bronze { color: var(--bronze); }
-        .new-game-btn { width: 100%; background: #e74c3c; border: none; padding: 12px; border-radius: 10px; color: white; font-weight: bold; cursor: pointer; margin-top: 5px; -webkit-tap-highlight-color: transparent; }
-        .reset-btn { background:#95a5a6; color:white; border:none; padding:12px 25px; border-radius:15px; cursor:pointer; -webkit-tap-highlight-color: transparent; }
+        
+        .new-game-btn { width: 100%; background: #e74c3c; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 5px; }
+        .reset-btn { background:#95a5a6; color:white; padding:12px 25px; border-radius:15px; margin-top: 15px; }
+        
+        .level-winner { font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 4px 6px; border-radius: 8px; min-width: 80px; }
+        .rank-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
     </style>
 </head>
 <body>
@@ -39,7 +51,7 @@
         <div class="modal-content">
             <h1>Woody's Puzzle</h1>
             <input type="text" id="nickname-input" placeholder="닉네임 (최대 8자)" maxlength="8">
-            <button class="start-btn" onclick="startGame()">입장하기</button>
+            <button class="difficulty-btn" style="background:var(--primary-color); width:100%" onclick="startGame()">입장하기</button>
         </div>
     </div>
 
@@ -50,31 +62,32 @@
     
     <div class="main-layout">
         <div>
-            <div id="grid-container">
+            <div id="grid-container" id="game-board">
                 <div id="grid"></div>
                 <canvas id="lineCanvas"></canvas>
             </div>
-            <div style="margin-top:15px;"><button class="reset-btn" onclick="resetCurrentLine()">선 초기화</button></div>
+            <br>
+            <button class="reset-btn" onclick="resetCurrentLine()">선 초기화</button>
         </div>
 
         <div class="sidebar">
             <div class="control-panel">
                 <div class="difficulty-wrapper">
                     <button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">3단계 (7x7)</button>
-                    <div class="level-winner">👑 <span id="winner-3" class="winner-name">-</span></div>
+                    <div class="level-winner">👑 <span id="winner-3">-</span></div>
                 </div>
                 <div class="difficulty-wrapper">
                     <button class="difficulty-btn" id="btn-lvl2" onclick="switchLevel(2)">2단계 (5x5)</button>
-                    <div class="level-winner">👑 <span id="winner-2" class="winner-name">-</span></div>
+                    <div class="level-winner">👑 <span id="winner-2">-</span></div>
                 </div>
                 <div class="difficulty-wrapper">
                     <button class="difficulty-btn active" id="btn-lvl1" onclick="switchLevel(1)">1단계 (3x3)</button>
-                    <div class="level-winner">👑 <span id="winner-1" class="winner-name">-</span></div>
+                    <div class="level-winner">👑 <span id="winner-1">-</span></div>
                 </div>
                 <button class="new-game-btn" onclick="createNewGame()">새로운 문제</button>
             </div>
             <div class="rank-panel">
-                <div id="rank-title" class="rank-title">실시간 랭킹</div>
+                <div id="rank-title" style="font-weight:bold; margin-bottom:10px;">실시간 랭킹</div>
                 <div id="rank-list"></div>
             </div>
         </div>
@@ -112,53 +125,16 @@
             switchLevel(1);
         }
 
-        function saveScore(name, level) {
-            const safeName = name.replace(/[.#$[\]]/g, "_");
-            const userScoreRef = db.ref(`scores/level${level}/${safeName}`);
-            userScoreRef.once('value', (snapshot) => {
-                const currentCount = snapshot.val() || 0;
-                userScoreRef.set(currentCount + 1);
-            });
-        }
-
-        function updateRankDisplay() {
-            const levelKey = 'level' + currentLevel;
-            document.getElementById('rank-title').innerText = `${currentLevel}단계 랭킹 (실시간)`;
-            db.ref(`scores/${levelKey}`).orderByValue().on('value', (snapshot) => {
-                const data = snapshot.val();
-                let sorted = [];
-                for (let key in data) {
-                    if (key === "Dev_Test") continue; 
-                    sorted.push({ name: key, score: data[key] });
-                }
-                sorted.sort((a, b) => b.score - a.score);
-                const rankList = document.getElementById('rank-list');
-                rankList.innerHTML = '';
-                const top10 = sorted.slice(0, 10);
-                if (top10.length === 0) rankList.innerHTML = '<div style="opacity:0.5;">기록이 없습니다.</div>';
-                top10.forEach((item, index) => {
-                    let crown = index === 0 ? "👑" : index === 1 ? "🥈" : index === 2 ? "🥉" : (index + 1) + ".";
-                    let colorClass = index === 0 ? "gold" : index === 1 ? "silver" : index === 2 ? "bronze" : "";
-                    if (index === 0) {
-                        const winEl = document.getElementById(`winner-${currentLevel}`);
-                        if(winEl) winEl.innerText = item.name;
-                    }
-                    rankList.innerHTML += `<div class="rank-item"><span class="${colorClass}">${crown} ${item.name}</span><span>${item.score}회</span></div>`;
-                });
-            });
-        }
-
         function switchLevel(level) {
             currentLevel = level;
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`btn-lvl${level}`).classList.add('active');
+            const activeBtn = document.getElementById(`btn-lvl${level}`);
+            if(activeBtn) activeBtn.classList.add('active');
+            
             document.documentElement.style.setProperty('--cell-size', gameState[level].cellSize);
+            if (!gameState[level].boardData) generateBoardData(level);
             
-            if (!gameState[level].boardData) {
-                generateBoardData(level);
-            }
-            
-            renderBoard(); 
+            renderBoard();
             updateRankDisplay();
         }
 
@@ -167,11 +143,12 @@
             const size = config.gridSize; const total = size * size;
             let successPath = null;
             const directions = [[0,1], [0,-1], [1,0], [-1,0]];
+            
             function findPath() {
                 const start = Math.floor(Math.random() * total);
                 let path = [start]; let visited = new Set(path); let attempts = 0;
                 function solve(curr) {
-                    attempts++; if (attempts > 3000) return false;
+                    attempts++; if (attempts > 2000) return false;
                     if (path.length === total) return true;
                     const shuffledDirs = [...directions].sort(() => Math.random() - 0.5);
                     for (const [dr, dc] of shuffledDirs) {
@@ -201,65 +178,57 @@
             const gridEl = document.getElementById('grid');
             gridEl.innerHTML = '';
             gridEl.style.gridTemplateColumns = `repeat(${config.gridSize}, var(--cell-size))`;
+            
             config.boardData.forEach((val, i) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell' + (val ? ' target' : '');
                 cell.textContent = val;
                 
-                // 마우스 이벤트
-                cell.onmousedown = (e) => { 
-                    if(val == "1") { isDragging = true; config.currentPath = [i]; drawLine(); } 
+                // 이벤트 리스너 통합 (mousedown/touchstart)
+                const startAction = (e) => {
+                    if(val == "1") {
+                        isDragging = true;
+                        config.currentPath = [i];
+                        drawLine();
+                    }
                 };
-                cell.onmouseenter = () => { if(isDragging) extendPath(i); };
+                cell.onmousedown = startAction;
+                cell.ontouchstart = (e) => { startAction(e); };
                 
-                // 터치 이벤트
-                cell.ontouchstart = (e) => { 
-                    if(val == "1") { 
-                        isDragging = true; 
-                        config.currentPath = [i]; 
-                        drawLine(); 
-                    } 
-                };
+                cell.onmouseenter = () => { if(isDragging) extendPath(i); };
                 gridEl.appendChild(cell);
             });
-            
-            // 전역 이벤트 (드래그 종료)
-            window.onmouseup = window.ontouchend = () => { isDragging = false; };
-            
+
             // 터치 이동 처리 (개선)
             gridEl.ontouchmove = (e) => {
                 if (!isDragging) return;
-                e.preventDefault(); // 스크롤 방지
                 const touch = e.touches[0];
                 const el = document.elementFromPoint(touch.clientX, touch.clientY);
                 if (el && el.classList.contains('cell')) {
                     const idx = Array.from(gridEl.children).indexOf(el);
                     if(idx !== -1) extendPath(idx);
                 }
-            }, { passive: false };
-
+            };
+            
             setTimeout(resizeCanvas, 50);
         }
 
         function extendPath(idx) {
             const config = gameState[currentLevel];
-            if (config.currentPath.includes(idx)) { 
-                if (config.currentPath[config.currentPath.length - 2] === idx) { 
-                    config.currentPath.pop(); 
-                    drawLine(); 
-                } 
-                return; 
+            if (config.currentPath.includes(idx)) {
+                if (config.currentPath[config.currentPath.length - 2] === idx) {
+                    config.currentPath.pop();
+                    drawLine();
+                }
+                return;
             }
             const last = config.currentPath[config.currentPath.length - 1];
             if (Math.abs(Math.floor(last/config.gridSize) - Math.floor(idx/config.gridSize)) + Math.abs((last%config.gridSize) - (idx%config.gridSize)) === 1) {
                 const cells = document.getElementById('grid').children;
                 const val = cells[idx].textContent;
-                if (val !== '') {
-                    const max = Math.max(...config.currentPath.map(p => parseInt(cells[p].textContent) || 0));
-                    if (parseInt(val) !== max + 1) return;
-                }
-                config.currentPath.push(idx); 
-                drawLine(); 
+                if (val !== '' && parseInt(val) !== Math.max(...config.currentPath.map(p => parseInt(cells[p].textContent) || 0)) + 1) return;
+                config.currentPath.push(idx);
+                drawLine();
                 checkWin();
             }
         }
@@ -269,18 +238,17 @@
             const ctx = canvas.getContext('2d');
             const config = gameState[currentLevel];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (!config.currentPath || config.currentPath.length < 1) return;
+            if (!config.currentPath.length) return;
             
             ctx.beginPath();
             ctx.strokeStyle = 'rgba(52, 152, 219, 0.6)';
-            ctx.lineWidth = config.gridSize === 3 ? 40 : config.gridSize === 5 ? 25 : 16;
-            ctx.lineCap = 'round'; 
-            ctx.lineJoin = 'round';
+            ctx.lineWidth = config.gridSize === 3 ? 35 : config.gridSize === 5 ? 22 : 14;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             
             const cells = document.getElementById('grid').children;
             config.currentPath.forEach((idx, i) => {
                 const el = cells[idx];
-                const x = el.offsetLeft + el.offsetWidth/2; 
+                const x = el.offsetLeft + el.offsetWidth/2;
                 const y = el.offsetTop + el.offsetHeight/2;
                 if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
             });
@@ -290,51 +258,62 @@
         function checkWin() {
             const config = gameState[currentLevel];
             const cells = document.getElementById('grid').children;
-            const lastIdx = config.currentPath[config.currentPath.length - 1];
-            const val = cells[lastIdx].textContent;
+            const lastVal = cells[config.currentPath[config.currentPath.length-1]].textContent;
             const max = Math.max(...Array.from(cells).map(c => parseInt(c.textContent) || 0));
-            if (val == max && config.currentPath.length === config.gridSize * config.gridSize) {
+            
+            if (lastVal == max && config.currentPath.length === config.gridSize * config.gridSize) {
                 isDragging = false;
-                setTimeout(() => { 
-                    alert(`🎉 ${currentLevel}단계 클리어!`); 
-                    saveScore(userName, currentLevel); 
+                setTimeout(() => {
+                    alert(`🎉 ${currentLevel}단계 클리어!`);
+                    saveScore(userName, currentLevel);
                     gameState[currentLevel].boardData = null;
                     gameState[currentLevel].currentPath = [];
-                    switchLevel(currentLevel); 
+                    switchLevel(currentLevel);
                 }, 200);
             }
         }
 
-        function resizeCanvas() {
-            const canvas = document.getElementById('lineCanvas');
-            const gridEl = document.getElementById('grid');
-            if(gridEl && canvas) { 
-                canvas.width = gridEl.offsetWidth; 
-                canvas.height = gridEl.offsetHeight; 
-                drawLine(); 
-            }
+        function saveScore(name, level) {
+            const safeName = name.replace(/[.#$[\]]/g, "_");
+            db.ref(`scores/level${level}/${safeName}`).transaction(curr => (curr || 0) + 1);
         }
-        
-        function createNewGame() { 
-            gameState[currentLevel].boardData = null; 
+
+        function updateRankDisplay() {
+            db.ref(`scores/level${currentLevel}`).orderByValue().limitToLast(10).on('value', snap => {
+                const list = document.getElementById('rank-list');
+                list.innerHTML = '';
+                let items = [];
+                snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
+                items.sort((a,b) => b.score - a.score).forEach((item, i) => {
+                    list.innerHTML += `<div class="rank-item"><span>${i+1}. ${item.name}</span><span>${item.score}회</span></div>`;
+                    if(i === 0) {
+                        const win = document.getElementById(`winner-${currentLevel}`);
+                        if(win) win.innerText = item.name;
+                    }
+                });
+            });
+        }
+
+        function createNewGame() {
+            gameState[currentLevel].boardData = null;
             gameState[currentLevel].currentPath = [];
-            resetCurrentLine();
             switchLevel(currentLevel);
         }
 
-        function resetCurrentLine() { 
-            gameState[currentLevel].currentPath = []; 
-            isDragging = false; 
-            const canvas = document.getElementById('lineCanvas');
-            if(canvas) {
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            }
+        function resetCurrentLine() {
+            gameState[currentLevel].currentPath = [];
+            isDragging = false;
             drawLine();
         }
-        
+
+        function resizeCanvas() {
+            const canvas = document.getElementById('lineCanvas');
+            const grid = document.getElementById('grid');
+            if(grid && canvas) { canvas.width = grid.offsetWidth; canvas.height = grid.offsetHeight; drawLine(); }
+        }
+
+        window.onmouseup = window.ontouchend = () => { isDragging = false; };
         window.addEventListener('resize', resizeCanvas);
-        window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 200));
     </script>
 </body>
 </html>
