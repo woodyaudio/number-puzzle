@@ -82,7 +82,7 @@
     </div>
 
     <script>
-        // 사용자가 제공한 Firebase 설정값
+        // 사용자 Firebase 설정값
         const firebaseConfig = {
             apiKey: "AIzaSyB_NUeTdKb8amEQgpIiH2s01EvOw0fywOE",
             authDomain: "project-number-2e9c8.firebaseapp.com",
@@ -123,30 +123,44 @@
             });
         }
 
+        // 랭킹 표시 함수 (Dev_Test 제외 로직 포함)
         function updateRankDisplay() {
             const levelKey = 'level' + currentLevel;
             document.getElementById('rank-title').innerText = `${currentLevel}단계 랭킹 (실시간)`;
-            db.ref(`scores/${levelKey}`).orderByValue().limitToLast(10).on('value', (snapshot) => {
+            
+            db.ref(`scores/${levelKey}`).orderByValue().limitToLast(15).on('value', (snapshot) => {
                 const data = snapshot.val();
                 const sorted = [];
-                for (let key in data) sorted.push([key, data[key]]);
+                for (let key in data) {
+                    if (key === "Dev_Test") continue; // 필터링: Dev_Test 제외
+                    sorted.push([key, data[key]]);
+                }
                 sorted.sort((a, b) => b[1] - a[1]);
+                
+                const top10 = sorted.slice(0, 10);
                 const rankList = document.getElementById('rank-list');
-                rankList.innerHTML = sorted.length ? '' : '<div style="opacity:0.5;">기록이 없습니다.</div>';
-                sorted.forEach((item, index) => {
+                rankList.innerHTML = top10.length ? '' : '<div style="opacity:0.5;">기록이 없습니다.</div>';
+                
+                top10.forEach((item, index) => {
                     let crown = index === 0 ? "👑" : index === 1 ? "🥈" : index === 2 ? "🥉" : (index + 1) + ".";
                     let colorClass = index === 0 ? "gold" : index === 1 ? "silver" : index === 2 ? "bronze" : "";
                     if (index === 0) document.getElementById(`winner-${currentLevel}`).innerText = item[0];
                     rankList.innerHTML += `<div class="rank-item"><span class="${colorClass}">${crown} ${item[0]}</span><span>${item[1]}회</span></div>`;
                 });
             });
+
             [1, 2, 3].forEach(lvl => {
-                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(1).on('value', (snap) => {
-                    const d = snap.val(); if(d) document.getElementById(`winner-${lvl}`).innerText = Object.keys(d)[0];
+                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(5).on('value', (snap) => {
+                    const d = snap.val();
+                    if(d) {
+                        const names = Object.keys(d).filter(name => name !== "Dev_Test");
+                        if(names.length > 0) document.getElementById(`winner-${lvl}`).innerText = names[names.length - 1];
+                    }
                 });
             });
         }
 
+        // --- 게임 핵심 로직 ---
         function switchLevel(level) {
             currentLevel = level;
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
@@ -264,7 +278,7 @@
             const gridEl = document.getElementById('grid');
             if(gridEl) { canvas.width = gridEl.offsetWidth; canvas.height = gridEl.offsetHeight; drawLine(); }
         }
-        function createNewGame() { gameState[currentLevel].currentPath = []; generateBoardData(currentLevel); renderBoard(); }
+        function createNewGame() { gameState[currentLevel].boardData = null; switchLevel(currentLevel); }
         function resetCurrentLine() { gameState[currentLevel].currentPath = []; isDragging = false; resizeCanvas(); }
         window.onresize = resizeCanvas;
     </script>
