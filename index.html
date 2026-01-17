@@ -120,58 +120,34 @@
             });
         }
 
-        // 랭킹 표시 함수 (강력 필터링 버전)
         function updateRankDisplay() {
             const levelKey = 'level' + currentLevel;
             document.getElementById('rank-title').innerText = `${currentLevel}단계 랭킹 (실시간)`;
-            
             db.ref(`scores/${levelKey}`).orderByValue().on('value', (snapshot) => {
                 const data = snapshot.val();
                 let sorted = [];
                 for (let key in data) {
-                    // ★ 제외 로직 ★
                     if (key === "Dev_Test") continue; 
                     sorted.push({ name: key, score: data[key] });
                 }
-                
-                // 점수 기준 내림차순 정렬
                 sorted.sort((a, b) => b.score - a.score);
-                
-                // 랭킹 리스트 출력 (상위 10명)
                 const rankList = document.getElementById('rank-list');
                 rankList.innerHTML = '';
-                
                 const top10 = sorted.slice(0, 10);
-                if (top10.length === 0) {
-                    rankList.innerHTML = '<div style="opacity:0.5;">기록이 없습니다.</div>';
-                }
-
+                if (top10.length === 0) rankList.innerHTML = '<div style="opacity:0.5;">기록이 없습니다.</div>';
                 top10.forEach((item, index) => {
                     let crown = index === 0 ? "👑" : index === 1 ? "🥈" : index === 2 ? "🥉" : (index + 1) + ".";
                     let colorClass = index === 0 ? "gold" : index === 1 ? "silver" : index === 2 ? "bronze" : "";
-                    
-                    // 1등 이름 전광판 업데이트
                     if (index === 0) document.getElementById(`winner-${currentLevel}`).innerText = item.name;
-
-                    rankList.innerHTML += `
-                        <div class="rank-item">
-                            <span class="${colorClass}">${crown} ${item.name}</span>
-                            <span>${item.score}회</span>
-                        </div>`;
+                    rankList.innerHTML += `<div class="rank-item"><span class="${colorClass}">${crown} ${item.name}</span><span>${item.score}회</span></div>`;
                 });
             });
-
-            // 각 단계별 버튼 옆 실시간 1위 전용 업데이트
             [1, 2, 3].forEach(lvl => {
                 db.ref(`scores/level${lvl}`).orderByValue().limitToLast(10).on('value', (snap) => {
                     const d = snap.val();
                     if(d) {
                         let filtered = Object.keys(d).filter(n => n !== "Dev_Test");
-                        if(filtered.length > 0) {
-                            document.getElementById(`winner-${lvl}`).innerText = filtered[filtered.length - 1];
-                        } else {
-                            document.getElementById(`winner-${lvl}`).innerText = "-";
-                        }
+                        if(filtered.length > 0) document.getElementById(`winner-${lvl}`).innerText = filtered[filtered.length - 1];
                     }
                 });
             });
@@ -182,9 +158,7 @@
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
             document.documentElement.style.setProperty('--cell-size', gameState[level].cellSize);
-            if (!gameState[level].boardData) generateBoardData(level);
-            renderBoard();
-            updateRankDisplay();
+            createNewGame(); // 난이도 변경 시에도 초기화 포함 새 게임 생성
         }
 
         function generateBoardData(level) {
@@ -284,9 +258,14 @@
             const lastIdx = config.currentPath[config.currentPath.length - 1];
             const val = cells[lastIdx].textContent;
             const max = Math.max(...Array.from(cells).map(c => parseInt(c.textContent) || 0));
+            // 조건: 마지막 숫자를 밟았고, 전체 칸을 다 채웠을 때
             if (val == max && config.currentPath.length === config.gridSize * config.gridSize) {
                 isDragging = false;
-                setTimeout(() => { alert(`🎉 ${currentLevel}단계 클리어!`); saveScore(userName, currentLevel); createNewGame(); }, 200);
+                setTimeout(() => { 
+                    alert(`🎉 ${currentLevel}단계 클리어!`); 
+                    saveScore(userName, currentLevel); 
+                    createNewGame(); // 1번 버그 수정: 클리어 후 자동 새 게임
+                }, 200);
             }
         }
         function resizeCanvas() {
@@ -294,8 +273,23 @@
             const gridEl = document.getElementById('grid');
             if(gridEl) { canvas.width = gridEl.offsetWidth; canvas.height = gridEl.offsetHeight; drawLine(); }
         }
-        function createNewGame() { gameState[currentLevel].boardData = null; switchLevel(currentLevel); }
-        function resetCurrentLine() { gameState[currentLevel].currentPath = []; isDragging = false; resizeCanvas(); }
+        
+        // 2번 버그 수정: 새로운 게임 생성 시 선 데이터와 캔버스를 완전히 초기화
+        function createNewGame() { 
+            gameState[currentLevel].currentPath = []; 
+            resetCurrentLine(); // 캔버스 지우기
+            generateBoardData(currentLevel); 
+            renderBoard(); 
+            updateRankDisplay();
+        }
+
+        function resetCurrentLine() { 
+            gameState[currentLevel].currentPath = []; 
+            isDragging = false; 
+            const canvas = document.getElementById('lineCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height); // 화면 청소
+        }
         window.onresize = resizeCanvas;
     </script>
 </body>
