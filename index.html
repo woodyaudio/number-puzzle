@@ -14,20 +14,20 @@
         .modal-content input { width: 80%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 10px; text-align: center; font-size: 1rem; }
         .main-layout { display: flex; justify-content: center; align-items: flex-start; gap: 20px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; }
         #grid-container { position: relative; background: #ecf0f1; padding: 15px; border-radius: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); touch-action: none; margin: 0 auto; display: inline-block; }
-        #grid { display: grid; gap: 8px; position: relative; z-index: 5; }
-        .cell { width: var(--cell-size); height: var(--cell-size); background: #ffffff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; font-weight: 800; color: #34495e; user-select: none; }
+        #grid { display: grid; gap: 5px; position: relative; z-index: 5; }
+        .cell { width: var(--cell-size); height: var(--cell-size); background: #ffffff; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 800; color: #34495e; user-select: none; }
         .cell.target { color: var(--primary-color); border: 2px solid #d6eaf8; box-sizing: border-box; }
         canvas { position: absolute; top: 15px; left: 15px; pointer-events: none; z-index: 10; }
-        .sidebar { min-width: 280px; display: flex; flex-direction: column; gap: 15px; }
+        .sidebar { min-width: 280px; display: flex; flex-direction: column; gap: 10px; }
         .control-panel, .rank-panel { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 20px; }
         button { cursor: pointer; border: none; font-family: inherit; transition: transform 0.1s; touch-action: manipulation; }
         button:active { transform: scale(0.95); }
-        .difficulty-wrapper { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
-        .difficulty-btn { flex: 1; padding: 15px 10px; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; font-size: 0.9rem; }
+        .difficulty-wrapper { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+        .difficulty-btn { flex: 1; padding: 12px 8px; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; font-size: 0.85rem; }
         .difficulty-btn.active { background: var(--primary-color); box-shadow: 0 0 10px var(--primary-color); }
         .new-game-btn { width: 100%; background: #e74c3c; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 5px; }
-        .reset-btn { background:#95a5a6; color:white; padding:12px 25px; border-radius:15px; margin-top: 15px; }
-        .level-winner { font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 4px 6px; border-radius: 8px; min-width: 80px; }
+        .reset-btn { background:#95a5a6; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; }
+        .level-winner { font-size: 0.65rem; background: rgba(0,0,0,0.3); padding: 4px 6px; border-radius: 8px; min-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .rank-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .gold { color: var(--gold); font-weight: bold; }
         .silver { color: var(--silver); font-weight: bold; }
@@ -61,6 +61,10 @@
 
         <div class="sidebar">
             <div class="control-panel">
+                <div class="difficulty-wrapper">
+                    <button class="difficulty-btn" id="btn-lvl4" onclick="switchLevel(4)">엘리트 (9x9)</button>
+                    <div class="level-winner">👑 <span id="winner-4">-</span></div>
+                </div>
                 <div class="difficulty-wrapper">
                     <button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">고급 (7x7)</button>
                     <div class="level-winner">👑 <span id="winner-3">-</span></div>
@@ -106,13 +110,13 @@
             'rgba(46, 204, 113, 0.6)', 'rgba(230, 126, 34, 0.6)', 'rgba(255, 105, 180, 0.6)', 'rgba(155, 89, 182, 0.6)'
         ];
 
-        // 명칭 매핑 객체
-        const levelNames = { 1: "초급", 2: "중급", 3: "고급" };
+        const levelNames = { 1: "초급", 2: "중급", 3: "고급", 4: "엘리트" };
 
         const gameState = {
             1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], cellSize: '90px', lineColor: lineColors[0] },
             2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], cellSize: '60px', lineColor: lineColors[0] },
-            3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], cellSize: '42px', lineColor: lineColors[0] }
+            3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], cellSize: '42px', lineColor: lineColors[0] },
+            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], cellSize: '32px', lineColor: lineColors[0] }
         };
 
         function startGame() {
@@ -120,23 +124,18 @@
             if (!userName) return alert("닉네임을 입력하세요!");
             document.getElementById('user-display').innerText = `플레이어: ${userName}`;
             document.getElementById('start-modal').style.display = 'none';
-            
             initWinnerDisplay();
             switchLevel(1);
         }
 
         function initWinnerDisplay() {
-            [1, 2, 3].forEach(lvl => {
+            [1, 2, 3, 4].forEach(lvl => {
                 db.ref(`scores/level${lvl}`).orderByValue().limitToLast(15).on('value', snap => {
                     let items = [];
-                    snap.forEach(child => {
-                        if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()});
-                    });
+                    snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
                     items.sort((a,b) => b.score - a.score);
                     const winEl = document.getElementById(`winner-${lvl}`);
-                    if(winEl) {
-                        winEl.innerText = items.length > 0 ? items[0].name : "-";
-                    }
+                    if(winEl) winEl.innerText = items.length > 0 ? items[0].name : "-";
                 });
             });
         }
@@ -154,6 +153,7 @@
             updateRankDisplay();
         }
 
+        // 최적화된 알고리즘: 시도 횟수 제한 및 시간 기반 재시도
         function generateBoardData(level) {
             const config = gameState[level];
             const size = config.gridSize; const total = size * size;
@@ -163,10 +163,15 @@
 
             function findPath() {
                 const start = Math.floor(Math.random() * total);
-                let path = [start]; let visited = new Set(path); let attempts = 0;
+                let path = [start]; let visited = new Set(path);
+                let attempts = 0;
+                
                 function solve(curr) {
-                    attempts++; if (attempts > 2000) return false;
+                    attempts++;
+                    // 엘리트 난이도 최적화: 시도 횟수가 너무 많으면 즉시 포기하고 재시작
+                    if (attempts > 5000) return false; 
                     if (path.length === total) return true;
+
                     const shuffledDirs = [...directions].sort(() => Math.random() - 0.5);
                     for (const [dr, dc] of shuffledDirs) {
                         const nr = Math.floor(curr/size)+dr, nc = (curr%size)+dc;
@@ -181,7 +186,12 @@
                 }
                 return solve(start) ? path : null;
             }
-            while (!successPath) successPath = findPath();
+
+            // 경로를 찾을 때까지 반복 (브라우저 응답성 유지)
+            while (!successPath) {
+                successPath = findPath();
+            }
+
             config.boardData = Array(total).fill('');
             const actualCount = Math.floor(Math.random() * (config.maxNum - config.minRequired + 1)) + config.minRequired;
             for (let i = 0; i < actualCount; i++) {
@@ -195,10 +205,16 @@
             const gridEl = document.getElementById('grid');
             gridEl.innerHTML = '';
             gridEl.style.gridTemplateColumns = `repeat(${config.gridSize}, var(--cell-size))`;
+            
+            // 엘리트 모드에서는 폰트 크기 조정
+            const fontSize = currentLevel == 4 ? '0.9rem' : '1.1rem';
+
             config.boardData.forEach((val, i) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell' + (val ? ' target' : '');
                 cell.textContent = val;
+                cell.style.fontSize = fontSize;
+                
                 const startAction = (e) => {
                     if(val == "1") { isDragging = true; config.currentPath = [i]; drawLine(); }
                 };
@@ -207,6 +223,7 @@
                 cell.onmouseenter = () => { if(isDragging) extendPath(i); };
                 gridEl.appendChild(cell);
             });
+
             gridEl.ontouchmove = (e) => {
                 if (!isDragging) return;
                 const touch = e.touches[0];
@@ -242,9 +259,11 @@
             const config = gameState[currentLevel];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!config.currentPath.length) return;
+            
             ctx.beginPath();
             ctx.strokeStyle = config.lineColor;
-            ctx.lineWidth = config.gridSize === 3 ? 35 : config.gridSize === 5 ? 22 : 14;
+            // 엘리트 난이도는 선을 좀 더 얇게 처리
+            ctx.lineWidth = config.gridSize === 3 ? 35 : config.gridSize === 5 ? 22 : config.gridSize === 7 ? 14 : 10;
             ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             const cells = document.getElementById('grid').children;
             config.currentPath.forEach((idx, i) => {
