@@ -62,15 +62,15 @@
         <div class="sidebar">
             <div class="control-panel">
                 <div class="difficulty-wrapper">
-                    <button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">고급 난이도 (7x7)</button>
+                    <button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">고급 (7x7)</button>
                     <div class="level-winner">👑 <span id="winner-3">-</span></div>
                 </div>
                 <div class="difficulty-wrapper">
-                    <button class="difficulty-btn" id="btn-lvl2" onclick="switchLevel(2)">중급 난이도 (5x5)</button>
+                    <button class="difficulty-btn" id="btn-lvl2" onclick="switchLevel(2)">중급 (5x5)</button>
                     <div class="level-winner">👑 <span id="winner-2">-</span></div>
                 </div>
                 <div class="difficulty-wrapper">
-                    <button class="difficulty-btn active" id="btn-lvl1" onclick="switchLevel(1)">초급 난이도 (3x3)</button>
+                    <button class="difficulty-btn active" id="btn-lvl1" onclick="switchLevel(1)">초급 (3x3)</button>
                     <div class="level-winner">👑 <span id="winner-1">-</span></div>
                 </div>
                 <button class="new-game-btn" onclick="createNewGame()">새로운 문제</button>
@@ -106,6 +106,9 @@
             'rgba(46, 204, 113, 0.6)', 'rgba(230, 126, 34, 0.6)', 'rgba(255, 105, 180, 0.6)', 'rgba(155, 89, 182, 0.6)'
         ];
 
+        // 명칭 매핑 객체
+        const levelNames = { 1: "초급", 2: "중급", 3: "고급" };
+
         const gameState = {
             1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], cellSize: '90px', lineColor: lineColors[0] },
             2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], cellSize: '60px', lineColor: lineColors[0] },
@@ -118,11 +121,10 @@
             document.getElementById('user-display').innerText = `플레이어: ${userName}`;
             document.getElementById('start-modal').style.display = 'none';
             
-            initWinnerDisplay(); // 입장하자마자 모든 난이도 1위 정보 감시 시작
+            initWinnerDisplay();
             switchLevel(1);
         }
 
-        // 모든 난이도의 1위 닉네임을 상시 업데이트하는 함수
         function initWinnerDisplay() {
             [1, 2, 3].forEach(lvl => {
                 db.ref(`scores/level${lvl}`).orderByValue().limitToLast(15).on('value', snap => {
@@ -262,7 +264,7 @@
             if (lastVal == max && config.currentPath.length === config.gridSize * config.gridSize) {
                 isDragging = false;
                 setTimeout(() => {
-                    alert(`🎉 ${currentLevel} 난이도 클리어!`);
+                    alert(`🎉 ${levelNames[currentLevel]} 클리어!`);
                     saveScore(userName, currentLevel);
                     gameState[currentLevel].boardData = null;
                     gameState[currentLevel].currentPath = [];
@@ -278,7 +280,7 @@
 
         function updateRankDisplay() {
             const list = document.getElementById('rank-list');
-            document.getElementById('rank-title').innerText = `${currentLevel} 난이도 실시간 랭킹`;
+            document.getElementById('rank-title').innerText = `${levelNames[currentLevel]} 실시간 랭킹`;
             db.ref(`scores/level${currentLevel}`).orderByValue().limitToLast(10).on('value', snap => {
                 list.innerHTML = '';
                 let items = [];
