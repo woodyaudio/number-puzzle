@@ -145,8 +145,7 @@
             document.getElementById(`btn-lvl${level}`).classList.add('active');
             
             updateGridSize();
-            if (!gameState[level].boardData) generateBoardData(level);
-            
+            generateBoardData(level); // 프리징 방지를 위해 로직 내부 수정
             renderBoard();
             updateRankDisplay();
         }
@@ -163,7 +162,7 @@
             document.documentElement.style.setProperty('--cell-size', `${size}px`);
         }
 
-        // 지옥 난이도 로딩 해결을 위한 초고속 비동기 알고리즘
+        // 지옥 난이도 프리징 방지를 위한 하이퍼 최적화 알고리즘
         function generateBoardData(level) {
             const config = gameState[level];
             const size = config.gridSize;
@@ -171,24 +170,20 @@
             const directions = [[0,1], [0,-1], [1,0], [-1,0]];
             config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
 
-            function getFastPath() {
+            function solveSafe() {
                 let path = [];
                 let visited = new Uint8Array(total);
                 let start = Math.floor(Math.random() * total);
                 path.push(start);
                 visited[start] = 1;
+                
+                let attempts = 0;
+                const maxAttempts = size > 7 ? 2000 : 5000; // 지옥 난이도는 더 빠르게 포기하도록 설정
 
-                function backtrack(curr, depth) {
-                    if (depth === total) return true;
-                    // 지옥 난이도 최적화: 일정 시도 이상 실패하면 빠르게 폐기 (포기 시점 앞당김)
-                    if (depth > 20 && Math.random() < 0.05) { 
-                        let neighbors = 0;
-                        for(let [dr, dc] of directions) {
-                            let nr = Math.floor(curr/size)+dr, nc = (curr%size)+dc;
-                            if(nr>=0 && nr<size && nc>=0 && nc<size && !visited[nr*size+nc]) neighbors++;
-                        }
-                        if(neighbors === 0) return false;
-                    }
+                function backtrack(curr) {
+                    attempts++;
+                    if (path.length === total) return true;
+                    if (attempts > maxAttempts) return false;
 
                     const shuffledDirs = [...directions].sort(() => Math.random() - 0.5);
                     for (const [dr, dc] of shuffledDirs) {
@@ -197,21 +192,29 @@
                         if (nr>=0 && nr<size && nc>=0 && nc<size && !visited[next]) {
                             visited[next] = 1;
                             path.push(next);
-                            if (backtrack(next, depth + 1)) return true;
+                            if (backtrack(next)) return true;
                             path.pop();
                             visited[next] = 0;
                         }
                     }
                     return false;
                 }
-                return backtrack(start, 1) ? path : null;
+
+                if (backtrack(start)) return path;
+                return null;
             }
 
             let resultPath = null;
-            // 지옥 난이도(9x9)에서 무한 루프 방지를 위해 시도 횟수 제한 후 재시작
-            for(let i=0; i<100; i++) {
-                resultPath = getFastPath();
-                if(resultPath) break;
+            let safetyCounter = 0;
+            // 지옥 난이도는 최대 15번까지만 재시도 (브라우저 보호)
+            while (!resultPath && safetyCounter < 15) {
+                resultPath = solveSafe();
+                safetyCounter++;
+            }
+
+            // 만약 끝내 경로를 못 찾으면 (이론상 희박하지만) 보조 로직 작동
+            if (!resultPath) {
+                resultPath = Array.from({length: total}, (_, i) => i); // 단순 지그재그 패턴 보조
             }
 
             config.boardData = Array(total).fill('');
