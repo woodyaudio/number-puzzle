@@ -22,12 +22,28 @@
         .control-panel, .rank-panel { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 20px; }
         button { cursor: pointer; border: none; font-family: inherit; transition: transform 0.1s; touch-action: manipulation; }
         button:active { transform: scale(0.95); }
-        .difficulty-wrapper { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
-        .difficulty-btn { flex: 1; padding: 12px 5px; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; font-size: 0.8rem; }
+        
+        /* 난이도 UI 레이아웃 고정 */
+        .difficulty-wrapper { display: flex; align-items: center; gap: 8px; margin: 5px 0; width: 100%; }
+        .difficulty-btn { flex: 0 0 110px; padding: 12px 5px; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; font-size: 0.8rem; text-align: center; }
         .difficulty-btn.active { background: var(--primary-color); box-shadow: 0 0 10px var(--primary-color); }
+        
+        /* 닉네임 말줄임 처리 */
+        .level-winner { 
+            flex: 1; 
+            font-size: 0.7rem; 
+            background: rgba(0,0,0,0.3); 
+            padding: 8px 6px; 
+            border-radius: 8px; 
+            text-align: center; 
+            white-space: nowrap; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            min-width: 0; /* flex 환경에서 ellipsis 작동 필수 조건 */
+        }
+
         .new-game-btn { width: 100%; background: #e74c3c; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 5px; }
         .reset-btn { background:#95a5a6; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; }
-        .level-winner { font-size: 0.65rem; background: rgba(0,0,0,0.3); padding: 4px 6px; border-radius: 8px; min-width: 75px; text-align: center; }
         .rank-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .gold { color: var(--gold); font-weight: bold; }
         .silver { color: var(--silver); font-weight: bold; }
@@ -41,7 +57,7 @@
         <div class="modal-content">
             <h1>Woody's Puzzle</h1>
             <input type="text" id="nickname-input" placeholder="닉네임 (최대 8자)" maxlength="8">
-            <button class="difficulty-btn" style="background:var(--primary-color); width:100%" onclick="startGame()">입장하기</button>
+            <button class="difficulty-btn" style="background:var(--primary-color); width:100%; flex: none;" onclick="startGame()">입장하기</button>
         </div>
     </div>
 
@@ -126,12 +142,16 @@
 
         function initWinnerDisplay() {
             [1, 2, 3, 4].forEach(lvl => {
-                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(20).on('value', snap => {
+                db.ref(`scores/level${lvl}`).orderByValue().limitToLast(10).on('value', snap => {
                     let items = [];
                     snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
                     items.sort((a,b) => b.score - a.score);
                     const winEl = document.getElementById(`winner-${lvl}`);
-                    if(winEl) winEl.innerText = items.length > 0 ? items[0].name : "-";
+                    if(winEl) {
+                        let name = items.length > 0 ? items[0].name : "-";
+                        // 4글자 초과 시 줄임표 처리 (JS 보조)
+                        winEl.innerText = name.length > 4 ? name.substring(0, 4) + "..." : name;
+                    }
                 });
             });
         }
@@ -141,7 +161,12 @@
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
             updateGridSize();
-            generateBoardData(level);
+            
+            // 핵심: 이미 보드가 있으면 생성하지 않음 (게임 유지)
+            if (!gameState[level].boardData) {
+                generateBoardData(level);
+            }
+            
             renderBoard();
             updateRankDisplay();
         }
@@ -171,7 +196,7 @@
                 let curr = Math.floor(Math.random() * total);
                 path.push(curr);
                 visited[curr] = true;
-                for (let i = 0; i < 2000; i++) {
+                for (let i = 0; i < 2500; i++) {
                     const r = Math.floor(curr / size), c = curr % size;
                     const neighbors = [];
                     [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
@@ -213,7 +238,6 @@
                 cell.style.fontSize = fontSize;
                 
                 const startAction = (e) => {
-                    // 1번을 누르면 새로 시작, 아니면 마지막 지점에서 이어가기
                     if(val == "1") {
                         isDragging = true;
                         config.currentPath = [i];
@@ -288,12 +312,20 @@
             const lastIdx = config.currentPath[config.currentPath.length - 1];
             const currentVal = config.boardData[lastIdx];
             const maxVal = Math.max(...config.boardData.filter(v => v !== ''));
-            if (currentVal == maxVal && config.currentPath.length === config.winPath.length) {
+            
+            // 모든 숫자 칸을 방문했고, 현재 위치가 마지막 숫자인지 확인
+            const visitedAllNumbers = config.boardData.every((val, idx) => {
+                if (val !== '') return config.currentPath.includes(idx);
+                return true;
+            });
+
+            // 클리어 조건: 마지막 숫자에 도달 + 모든 숫자 칸 통과 + 경로 길이가 최소 기준 충족
+            if (currentVal == maxVal && visitedAllNumbers && config.currentPath.length >= config.winPath.length) {
                 isDragging = false;
                 setTimeout(() => {
                     alert(`🎉 ${levelNames[currentLevel]} 클리어!`);
                     saveScore(userName, currentLevel);
-                    gameState[currentLevel].boardData = null;
+                    gameState[currentLevel].boardData = null; // 클리어 시에만 데이터 초기화
                     switchLevel(currentLevel);
                 }, 200);
             }
@@ -323,7 +355,7 @@
         }
 
         function createNewGame() {
-            gameState[currentLevel].boardData = null;
+            gameState[currentLevel].boardData = null; // 새로운 문제 버튼 시에만 초기화
             switchLevel(currentLevel);
         }
 
