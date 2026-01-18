@@ -37,12 +37,12 @@
         .gold { color: var(--gold); font-weight: bold; }
         .silver { color: var(--silver); font-weight: bold; }
         .bronze { color: var(--bronze); font-weight: bold; }
-        #hell-mode-wrapper { display: none; } /* 기본적으로 숨김 */
+        #hell-mode-wrapper { display: none; }
         @media (max-width: 500px) { .main-layout { gap: 10px; } .sidebar { order: 2; } }
     </style>
 </head>
 <body>
-    <div id="loading-overlay"><div class="spinner"></div><div id="loading-text">경로 생성 중...</div></div>
+    <div id="loading-overlay"><div class="spinner"></div><div id="loading-text">지옥의 경로를 생성 중...</div></div>
     <div id="start-modal">
         <div class="modal-content">
             <h1>Woody's Puzzle</h1>
@@ -86,8 +86,8 @@
         const gameState = {
             1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], targetLen: 9 },
             2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], targetLen: 25 },
-            3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], targetLen: 49 },
-            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 81 }
+            3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], targetLen: 42 }, // 7x7 고급: 최소 42칸 이상 권장
+            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 78 }
         };
 
         function startGame() {
@@ -95,7 +95,6 @@
             if (!userName) return alert("닉네임을 입력하세요!");
             document.getElementById('user-display').innerText = `플레이어: ${userName}`;
             document.getElementById('start-modal').style.display = 'none';
-            
             if (userName === 'Dev_Test') {
                 document.getElementById('hell-mode-wrapper').style.display = 'flex';
                 const btnContainer = document.getElementById('action-buttons');
@@ -142,7 +141,8 @@
             updateGridSize();
             if (!gameState[level].boardData) {
                 document.getElementById('loading-overlay').style.display = 'flex';
-                setTimeout(() => generateBoardData(level), 50);
+                document.getElementById('loading-text').innerText = `${levelNames[level]} 경로 생성 중...`;
+                setTimeout(() => generateBoardData(level), 100);
             } else renderBoard();
             updateRankDisplay();
         }
@@ -158,7 +158,7 @@
             const config = gameState[level];
             const size = config.gridSize;
             const total = size * size;
-            const minPathLen = (level === 4) ? 78 : total; 
+            const minPathLen = (level === 4) ? 78 : (level === 3 ? 42 : total); // 고급은 최소 42칸 방문
 
             function findHamiltonian() {
                 const visited = new Array(total).fill(false);
@@ -184,26 +184,38 @@
             const tryGen = () => {
                 attempts++;
                 const path = findHamiltonian();
+                // 고급(level 3)은 반드시 12번 이상의 경로 길이를 확보해야 함
                 if (path.length >= minPathLen) {
-                    finalizeGen(config, path);
+                    finalizeGen(config, path, level);
                 } else {
-                    if (attempts < 500) {
-                        if (attempts % 50 === 0) setTimeout(tryGen, 0);
+                    if (attempts < 1000) { 
+                        if (attempts % 100 === 0) setTimeout(tryGen, 0);
                         else tryGen();
-                    } else finalizeGen(config, path); // 최선책 선택
+                    } else finalizeGen(config, path, level); 
                 }
             };
             tryGen();
         }
 
-        function finalizeGen(config, path) {
+        function finalizeGen(config, path, level) {
             config.boardData = new Array(config.gridSize * config.gridSize).fill('');
             config.winPath = path;
             config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
             config.currentPath = [];
-            const numCount = Math.floor(Math.random() * (config.maxNum - config.minRequired + 1)) + config.minRequired;
-            for (let i = 0; i < numCount; i++) {
-                const step = Math.floor((i / (numCount - 1)) * (path.length - 1));
+
+            let numCount;
+            if (level === 3) {
+                // 고급: 1~12 확정, 최대 15
+                numCount = Math.floor(Math.random() * (15 - 12 + 1)) + 12;
+            } else {
+                numCount = Math.floor(Math.random() * (config.maxNum - config.minRequired + 1)) + config.minRequired;
+            }
+
+            // 경로가 numCount보다 짧으면 numCount를 경로 길이에 맞춤
+            const finalNumCount = Math.min(numCount, path.length);
+            
+            for (let i = 0; i < finalNumCount; i++) {
+                const step = Math.floor((i / (finalNumCount - 1)) * (path.length - 1));
                 config.boardData[path[step]] = i + 1;
             }
             document.getElementById('loading-overlay').style.display = 'none';
@@ -213,6 +225,7 @@
         function renderBoard() {
             const config = gameState[currentLevel];
             const gridEl = document.getElementById('grid');
+            if(!gridEl) return;
             gridEl.innerHTML = '';
             gridEl.style.gridTemplateColumns = `repeat(${config.gridSize}, var(--cell-size))`;
             config.boardData.forEach((val, i) => {
