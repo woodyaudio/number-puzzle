@@ -28,7 +28,8 @@
         .level-winner { flex: 1; font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 8px 6px; border-radius: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .new-game-btn { width: 100%; background: #e74c3c; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 5px; }
         .reset-btn { background:#95a5a6; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; }
-        .debug-btn { background:#f39c12; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; margin-left: 5px; font-weight: bold; }
+        .hint-btn { background:#f39c12; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; margin-left: 5px; }
+        .debug-btn { background:#8e44ad; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; margin-left: 5px; font-weight: bold; }
         .rank-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .gold { color: var(--gold); font-weight: bold; }
         .silver { color: var(--silver); font-weight: bold; }
@@ -79,6 +80,7 @@
         let userName = "";
         let currentLevel = 1;
         let isDragging = false;
+        let isHintUsed = false; // 힌트 사용 여부 체크
         const lineColors = ['rgba(52, 152, 219, 0.7)', 'rgba(241, 196, 15, 0.7)', 'rgba(231, 76, 60, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(255, 105, 180, 0.7)', 'rgba(155, 89, 182, 0.7)'];
         const levelNames = { 1: "초급", 2: "중급", 3: "고급", 4: "지옥" };
         const gameState = {
@@ -93,17 +95,13 @@
             if (!userName) return alert("닉네임을 입력하세요!");
             document.getElementById('user-display').innerText = `플레이어: ${userName}`;
             document.getElementById('start-modal').style.display = 'none';
-            
-            // Dev_Test 전용 디버그 버튼 추가
             if (userName === 'Dev_Test') {
                 const btnContainer = document.getElementById('action-buttons');
                 const debugBtn = document.createElement('button');
-                debugBtn.className = 'debug-btn';
-                debugBtn.innerText = '디버그: 즉시 클리어';
+                debugBtn.className = 'debug-btn'; debugBtn.innerText = '디버그: 즉시 클리어';
                 debugBtn.onclick = instantClear;
                 btnContainer.appendChild(debugBtn);
             }
-            
             initWinnerDisplay();
             switchLevel(1);
         }
@@ -125,8 +123,24 @@
 
         function switchLevel(level) {
             currentLevel = level;
+            isHintUsed = false; // 난이도 변경 시 힌트 사용 초기화
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
+            
+            // 지옥 난이도 힌트 버튼 토글
+            const btnContainer = document.getElementById('action-buttons');
+            let hintBtn = document.getElementById('hint-button');
+            if(level === 4) {
+                if(!hintBtn) {
+                    hintBtn = document.createElement('button');
+                    hintBtn.id = 'hint-button'; hintBtn.className = 'hint-btn'; hintBtn.innerText = '힌트 보기';
+                    hintBtn.onclick = showHint;
+                    btnContainer.appendChild(hintBtn);
+                }
+            } else if(hintBtn) {
+                hintBtn.remove();
+            }
+
             updateGridSize();
             if (!gameState[level].boardData) generateBoardData(level);
             renderBoard();
@@ -146,13 +160,11 @@
             const total = size * size;
             const targetLen = config.targetLen;
             let finalPath = null;
-
             function findLongPath() {
                 const visited = new Array(total).fill(false);
                 const path = [];
                 let curr = Math.floor(Math.random() * total);
-                path.push(curr);
-                visited[curr] = true;
+                path.push(curr); visited[curr] = true;
                 for (let i = 0; i < 2500; i++) {
                     const r = Math.floor(curr/size), c = curr%size;
                     const neighbors = [];
@@ -163,12 +175,10 @@
                     });
                     if (neighbors.length === 0) return path.length >= targetLen ? path : null;
                     curr = neighbors[Math.floor(Math.random() * neighbors.length)];
-                    path.push(curr);
-                    visited[curr] = true;
+                    path.push(curr); visited[curr] = true;
                 }
                 return path.length >= targetLen ? path : null;
             }
-
             while (!finalPath) finalPath = findLongPath();
             config.boardData = new Array(total).fill('');
             config.winPath = finalPath;
@@ -187,7 +197,6 @@
             gridEl.innerHTML = '';
             gridEl.style.gridTemplateColumns = `repeat(${config.gridSize}, var(--cell-size))`;
             const fontSize = config.gridSize >= 7 ? '0.75rem' : '1.1rem';
-
             config.boardData.forEach((val, i) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell' + (val ? ' target' : '');
@@ -253,6 +262,55 @@
             ctx.stroke();
         }
 
+        // 지옥 난이도 힌트 표시 로직
+        function showHint() {
+            if(!confirm('힌트를 사용하면 랭킹에 등록되지 않게 됩니다. 실행하시겠습니까?')) return;
+            isHintUsed = true;
+            const config = gameState[currentLevel];
+            const path = config.currentPath;
+            if(path.length === 0) return alert('먼저 1번을 눌러 시작하세요!');
+
+            // 다음 숫자가 있는 위치 찾기
+            const lastIdxInPath = path.length - 1;
+            const currentIdxOnWinPath = config.winPath.indexOf(path[lastIdxInPath]);
+            if(currentIdxOnWinPath === -1 || currentIdxOnWinPath === config.winPath.length - 1) return;
+
+            // 다음 숫자 지점까지의 힌트 경로 추출
+            let nextNumIdx = -1;
+            for(let i = currentIdxOnWinPath + 1; i < config.winPath.length; i++) {
+                if(config.boardData[config.winPath[i]] !== '') {
+                    nextNumIdx = i;
+                    break;
+                }
+            }
+            if(nextNumIdx === -1) nextNumIdx = config.winPath.length - 1;
+
+            const hintSegments = config.winPath.slice(currentIdxOnWinPath, nextNumIdx + 1);
+            
+            // 점선 그리기
+            const canvas = document.getElementById('lineCanvas');
+            const ctx = canvas.getContext('2d');
+            const cells = document.getElementById('grid').children;
+
+            const renderHint = () => {
+                ctx.beginPath();
+                ctx.setLineDash([10, 10]); // 점선 설정
+                ctx.strokeStyle = "#e67e22";
+                ctx.lineWidth = 10;
+                hintSegments.forEach((idx, i) => {
+                    const el = cells[idx];
+                    const x = el.offsetLeft + el.offsetWidth/2;
+                    const y = el.offsetTop + el.offsetHeight/2;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+                ctx.setLineDash([]); // 실선으로 복구
+            };
+
+            renderHint();
+            setTimeout(() => { drawLine(); }, 3000); // 3초 뒤 원래 선만 다시 그림
+        }
+
         function checkWin() {
             const config = gameState[currentLevel];
             if (config.currentPath.length === 0) return;
@@ -264,8 +322,8 @@
             if (currentVal == maxVal && visitedAllNumbers && config.currentPath.length >= config.winPath.length) {
                 isDragging = false;
                 setTimeout(() => {
-                    alert(`🎉 ${levelNames[currentLevel]} 클리어!`);
-                    saveScore(userName, currentLevel);
+                    alert(`🎉 ${levelNames[currentLevel]} 클리어!` + (isHintUsed ? "\n(힌트 사용으로 랭킹에는 기록되지 않습니다.)" : ""));
+                    if(!isHintUsed) saveScore(userName, currentLevel);
                     gameState[currentLevel].boardData = null;
                     switchLevel(currentLevel);
                 }, 200);
@@ -275,7 +333,7 @@
         function instantClear() {
             const config = gameState[currentLevel];
             if (!config.winPath) return;
-            config.currentPath = [...config.winPath]; // 정답 경로 복사
+            config.currentPath = [...config.winPath];
             drawLine();
             checkWin();
         }
@@ -294,13 +352,16 @@
                 snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
                 items.sort((a,b) => b.score - a.score).forEach((item, i) => {
                     let medal = (i + 1) + ".";
-                    let colorClass = (i===0) ? "gold" : (i===1) ? "silver" : (i===2) ? "bronze" : "";
-                    list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${(i<3?'👑🥈🥉'[i*2]+[i*2+1]:medal)} ${item.name}</span><span>${item.score}회</span></div>`;
+                    let colorClass = "";
+                    if (i === 0) { medal = "👑"; colorClass = "gold"; }
+                    else if (i === 1) { medal = "🥈"; colorClass = "silver"; }
+                    else if (i === 2) { medal = "🥉"; colorClass = "bronze"; }
+                    list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${medal} ${item.name}</span><span>${item.score}회</span></div>`;
                 });
             });
         }
 
-        function createNewGame() { gameState[currentLevel].boardData = null; switchLevel(currentLevel); }
+        function createNewGame() { isHintUsed = false; gameState[currentLevel].boardData = null; switchLevel(currentLevel); }
         function resetCurrentLine() { gameState[currentLevel].currentPath = []; isDragging = false; drawLine(); }
         function resizeCanvas() { const canvas = document.getElementById('lineCanvas'); const grid = document.getElementById('grid'); if(grid && canvas) { canvas.width = grid.offsetWidth; canvas.height = grid.offsetHeight; drawLine(); } }
         window.onmouseup = window.ontouchend = () => { isDragging = false; };
