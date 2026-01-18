@@ -9,6 +9,12 @@
     <style>
         :root { --primary-color: #3498db; --bg-color: #2c3e50; --cell-size: 70px; --gold: #f1c40f; --silver: #bdc3c7; --bronze: #e67e22; }
         body { font-family: 'Pretendard', sans-serif; text-align: center; background: var(--bg-color); margin: 0; padding: 10px; color: white; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+        
+        /* 로딩 오버레이 스타일 */
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 3000; }
+        .spinner { width: 50px; height: 50px; border: 5px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: var(--primary-color); animation: spin 1s ease-in-out infinite; margin-bottom: 20px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         #start-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 2000; }
         .modal-content { background: white; color: #333; padding: 30px; border-radius: 25px; width: 85%; max-width: 320px; }
         .modal-content input { width: 80%; padding: 12px; margin: 15px 0; border: 2px solid #ddd; border-radius: 10px; text-align: center; font-size: 1rem; }
@@ -38,6 +44,11 @@
     </style>
 </head>
 <body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div id="loading-text">지옥의 경로를 생성 중...</div>
+    </div>
+
     <div id="start-modal">
         <div class="modal-content">
             <h1>Woody's Puzzle</h1>
@@ -87,7 +98,7 @@
             1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], targetLen: 9 },
             2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], targetLen: 25 },
             3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], targetLen: 49 },
-            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 81 } // 9x9 전체 방문
+            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 81 }
         };
 
         function startGame() {
@@ -126,6 +137,7 @@
             isHintUsed = false;
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
+            
             const btnContainer = document.getElementById('action-buttons');
             let hintBtn = document.getElementById('hint-button');
             if(level === 4) {
@@ -136,33 +148,30 @@
                     btnContainer.appendChild(hintBtn);
                 }
             } else if(hintBtn) { hintBtn.remove(); }
-            updateGridSize();
-            if (!gameState[level].boardData) generateBoardData(level);
-            renderBoard();
-            updateRankDisplay();
-        }
 
-        function updateGridSize() {
-            const screenWidth = window.innerWidth;
-            const config = gameState[currentLevel];
-            let size = screenWidth < 500 ? Math.floor((screenWidth - 60) / config.gridSize) - 4 : (config.gridSize === 9 ? 35 : config.gridSize === 7 ? 45 : 65);
-            document.documentElement.style.setProperty('--cell-size', `${size}px`);
+            updateGridSize();
+            if (!gameState[level].boardData) {
+                document.getElementById('loading-overlay').style.display = 'flex';
+                // 약간의 지연을 주어 로딩 화면이 먼저 렌더링되게 함
+                setTimeout(() => { generateBoardData(level); }, 100);
+            } else {
+                renderBoard();
+            }
+            updateRankDisplay();
         }
 
         function generateBoardData(level) {
             const config = gameState[level];
             const size = config.gridSize;
             const total = size * size;
-            const targetLen = total; // 이제 무조건 100% 방문 시도
-            let finalPath = null;
+            const targetLen = (level === 4) ? 78 : total; // 지옥은 78칸 이상이면 합격
 
-            function findHamiltonianPath() {
+            function findPath() {
                 const visited = new Array(total).fill(false);
                 const path = [];
                 let curr = Math.floor(Math.random() * total);
                 path.push(curr); visited[curr] = true;
-                // 9x9의 경우 완벽한 경로를 찾기 위해 반복 횟수 대폭 상향
-                for (let i = 0; i < 10000; i++) {
+                for (let i = 0; i < 5000; i++) {
                     const r = Math.floor(curr/size), c = curr%size;
                     const neighbors = [];
                     [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
@@ -170,27 +179,37 @@
                         const idx = nr*size + nc;
                         if (nr>=0 && nr<size && nc>=0 && nc<size && !visited[idx]) neighbors.push(idx);
                     });
-                    if (neighbors.length === 0) return path.length === targetLen ? path : null;
+                    if (neighbors.length === 0) return path;
                     curr = neighbors[Math.floor(Math.random() * neighbors.length)];
                     path.push(curr); visited[curr] = true;
                 }
-                return path.length === targetLen ? path : null;
+                return path;
             }
 
-            // '지옥' 난이도는 100% 경로가 나올 때까지 반복 (최대 500번 시도 후 타협)
             let attempts = 0;
-            while (!finalPath && attempts < 500) {
-                finalPath = findHamiltonianPath();
+            const attemptGeneration = () => {
                 attempts++;
-            }
-            // 만약 500번 안에 81칸을 못 채우면 최소 75칸 이상으로 타협 (무한루프 방지)
-            if(!finalPath) {
-                config.targetLen = (level === 4) ? 75 : total;
-                generateBoardData(level);
-                return;
-            }
+                const path = findPath();
+                if (path.length >= targetLen) {
+                    finalizeGeneration(config, path, level);
+                } else {
+                    if (attempts < 300) { // 최대 300번 시도
+                        if(attempts % 50 === 0) { // 50번마다 UI 업데이트 기회 부여
+                            setTimeout(attemptGeneration, 0);
+                        } else {
+                            attemptGeneration();
+                        }
+                    } else {
+                        // 실패 시 타협하여 가장 긴 경로로 진행
+                        finalizeGeneration(config, path, level);
+                    }
+                }
+            };
+            attemptGeneration();
+        }
 
-            config.boardData = new Array(total).fill('');
+        function finalizeGeneration(config, finalPath, level) {
+            config.boardData = new Array(config.gridSize * config.gridSize).fill('');
             config.winPath = finalPath;
             config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
             config.currentPath = [];
@@ -199,6 +218,8 @@
                 const step = Math.floor((i / (numCount - 1)) * (finalPath.length - 1));
                 config.boardData[finalPath[step]] = i + 1;
             }
+            document.getElementById('loading-overlay').style.display = 'none';
+            renderBoard();
         }
 
         function renderBoard() {
