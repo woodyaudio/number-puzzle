@@ -22,28 +22,13 @@
         .control-panel, .rank-panel { background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 20px; }
         button { cursor: pointer; border: none; font-family: inherit; transition: transform 0.1s; touch-action: manipulation; }
         button:active { transform: scale(0.95); }
-        
-        /* 난이도 UI 레이아웃 고정 */
         .difficulty-wrapper { display: flex; align-items: center; gap: 8px; margin: 5px 0; width: 100%; }
         .difficulty-btn { flex: 0 0 110px; padding: 12px 5px; border-radius: 10px; background: #5d6d7e; color: white; font-weight: bold; font-size: 0.8rem; text-align: center; }
         .difficulty-btn.active { background: var(--primary-color); box-shadow: 0 0 10px var(--primary-color); }
-        
-        /* 닉네임 말줄임 처리 */
-        .level-winner { 
-            flex: 1; 
-            font-size: 0.7rem; 
-            background: rgba(0,0,0,0.3); 
-            padding: 8px 6px; 
-            border-radius: 8px; 
-            text-align: center; 
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; 
-            min-width: 0; /* flex 환경에서 ellipsis 작동 필수 조건 */
-        }
-
+        .level-winner { flex: 1; font-size: 0.7rem; background: rgba(0,0,0,0.3); padding: 8px 6px; border-radius: 8px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .new-game-btn { width: 100%; background: #e74c3c; padding: 15px; border-radius: 10px; color: white; font-weight: bold; margin-top: 5px; }
         .reset-btn { background:#95a5a6; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; }
+        .debug-btn { background:#f39c12; color:white; padding:12px 25px; border-radius:15px; margin-top: 10px; margin-left: 5px; font-weight: bold; }
         .rank-item { display: flex; justify-content: space-between; padding: 8px 0; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .gold { color: var(--gold); font-weight: bold; }
         .silver { color: var(--silver); font-weight: bold; }
@@ -52,7 +37,6 @@
     </style>
 </head>
 <body>
-
     <div id="start-modal">
         <div class="modal-content">
             <h1>Woody's Puzzle</h1>
@@ -60,12 +44,10 @@
             <button class="difficulty-btn" style="background:var(--primary-color); width:100%; flex: none;" onclick="startGame()">입장하기</button>
         </div>
     </div>
-
     <div class="header">
         <h2>Woody's Number Puzzle</h2>
         <div id="user-display" style="color:#3498db; font-weight:bold; margin-bottom:10px;"></div>
     </div>
-    
     <div class="main-layout">
         <div>
             <div id="grid-container">
@@ -73,48 +55,24 @@
                 <canvas id="lineCanvas"></canvas>
             </div>
             <br>
-            <button class="reset-btn" onclick="resetCurrentLine()">선 초기화</button>
+            <div id="action-buttons">
+                <button class="reset-btn" onclick="resetCurrentLine()">선 초기화</button>
+            </div>
         </div>
-
         <div class="sidebar">
             <div class="control-panel">
-                <div class="difficulty-wrapper">
-                    <button class="difficulty-btn" id="btn-lvl4" onclick="switchLevel(4)">지옥 (9x9)</button>
-                    <div class="level-winner">👑 <span id="winner-4">-</span></div>
-                </div>
-                <div class="difficulty-wrapper">
-                    <button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">고급 (7x7)</button>
-                    <div class="level-winner">👑 <span id="winner-3">-</span></div>
-                </div>
-                <div class="difficulty-wrapper">
-                    <button class="difficulty-btn" id="btn-lvl2" onclick="switchLevel(2)">중급 (5x5)</button>
-                    <div class="level-winner">👑 <span id="winner-2">-</span></div>
-                </div>
-                <div class="difficulty-wrapper">
-                    <button class="difficulty-btn active" id="btn-lvl1" onclick="switchLevel(1)">초급 (3x3)</button>
-                    <div class="level-winner">👑 <span id="winner-1">-</span></div>
-                </div>
+                <div class="difficulty-wrapper"><button class="difficulty-btn" id="btn-lvl4" onclick="switchLevel(4)">지옥 (9x9)</button><div class="level-winner">👑 <span id="winner-4">-</span></div></div>
+                <div class="difficulty-wrapper"><button class="difficulty-btn" id="btn-lvl3" onclick="switchLevel(3)">고급 (7x7)</button><div class="level-winner">👑 <span id="winner-3">-</span></div></div>
+                <div class="difficulty-wrapper"><button class="difficulty-btn" id="btn-lvl2" onclick="switchLevel(2)">중급 (5x5)</button><div class="level-winner">👑 <span id="winner-2">-</span></div></div>
+                <div class="difficulty-wrapper"><button class="difficulty-btn active" id="btn-lvl1" onclick="switchLevel(1)">초급 (3x3)</button><div class="level-winner">👑 <span id="winner-1">-</span></div></div>
                 <button class="new-game-btn" onclick="createNewGame()">새로운 문제</button>
             </div>
-            <div class="rank-panel">
-                <div id="rank-title" style="font-weight:bold; margin-bottom:10px;">실시간 랭킹</div>
-                <div id="rank-list"></div>
-            </div>
+            <div class="rank-panel"><div id="rank-title" style="font-weight:bold; margin-bottom:10px;">실시간 랭킹</div><div id="rank-list"></div></div>
         </div>
     </div>
 
     <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyB_NUeTdKb8amEQgpIiH2s01EvOw0fywOE",
-            authDomain: "project-number-2e9c8.firebaseapp.com",
-            databaseURL: "https://project-number-2e9c8-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "project-number-2e9c8",
-            storageBucket: "project-number-2e9c8.firebasestorage.app",
-            messagingSenderId: "419237880538",
-            appId: "1:419237880538:web:5055d7133ef62bab23fbe3",
-            measurementId: "G-V2XXPMSD0K"
-        };
-
+        const firebaseConfig = { apiKey: "AIzaSyB_NUeTdKb8amEQgpIiH2s01EvOw0fywOE", authDomain: "project-number-2e9c8.firebaseapp.com", databaseURL: "https://project-number-2e9c8-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "project-number-2e9c8", storageBucket: "project-number-2e9c8.firebasestorage.app", messagingSenderId: "419237880538", appId: "1:419237880538:web:5055d7133ef62bab23fbe3", measurementId: "G-V2XXPMSD0K" };
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
@@ -123,7 +81,6 @@
         let isDragging = false;
         const lineColors = ['rgba(52, 152, 219, 0.7)', 'rgba(241, 196, 15, 0.7)', 'rgba(231, 76, 60, 0.7)', 'rgba(46, 204, 113, 0.7)', 'rgba(230, 126, 34, 0.7)', 'rgba(255, 105, 180, 0.7)', 'rgba(155, 89, 182, 0.7)'];
         const levelNames = { 1: "초급", 2: "중급", 3: "고급", 4: "지옥" };
-
         const gameState = {
             1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], targetLen: 9 },
             2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], targetLen: 25 },
@@ -136,6 +93,17 @@
             if (!userName) return alert("닉네임을 입력하세요!");
             document.getElementById('user-display').innerText = `플레이어: ${userName}`;
             document.getElementById('start-modal').style.display = 'none';
+            
+            // Dev_Test 전용 디버그 버튼 추가
+            if (userName === 'Dev_Test') {
+                const btnContainer = document.getElementById('action-buttons');
+                const debugBtn = document.createElement('button');
+                debugBtn.className = 'debug-btn';
+                debugBtn.innerText = '디버그: 즉시 클리어';
+                debugBtn.onclick = instantClear;
+                btnContainer.appendChild(debugBtn);
+            }
+            
             initWinnerDisplay();
             switchLevel(1);
         }
@@ -149,7 +117,6 @@
                     const winEl = document.getElementById(`winner-${lvl}`);
                     if(winEl) {
                         let name = items.length > 0 ? items[0].name : "-";
-                        // 4글자 초과 시 줄임표 처리 (JS 보조)
                         winEl.innerText = name.length > 4 ? name.substring(0, 4) + "..." : name;
                     }
                 });
@@ -161,12 +128,7 @@
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
             updateGridSize();
-            
-            // 핵심: 이미 보드가 있으면 생성하지 않음 (게임 유지)
-            if (!gameState[level].boardData) {
-                generateBoardData(level);
-            }
-            
+            if (!gameState[level].boardData) generateBoardData(level);
             renderBoard();
             updateRankDisplay();
         }
@@ -174,12 +136,7 @@
         function updateGridSize() {
             const screenWidth = window.innerWidth;
             const config = gameState[currentLevel];
-            let size = 65;
-            if (screenWidth < 500) {
-                size = Math.floor((screenWidth - 60) / config.gridSize) - 4;
-            } else {
-                size = config.gridSize === 9 ? 35 : config.gridSize === 7 ? 45 : 65;
-            }
+            let size = screenWidth < 500 ? Math.floor((screenWidth - 60) / config.gridSize) - 4 : (config.gridSize === 9 ? 35 : config.gridSize === 7 ? 45 : 65);
             document.documentElement.style.setProperty('--cell-size', `${size}px`);
         }
 
@@ -197,12 +154,12 @@
                 path.push(curr);
                 visited[curr] = true;
                 for (let i = 0; i < 2500; i++) {
-                    const r = Math.floor(curr / size), c = curr % size;
+                    const r = Math.floor(curr/size), c = curr%size;
                     const neighbors = [];
                     [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
-                        const nr = r + dr, nc = c + dc;
-                        const idx = nr * size + nc;
-                        if (nr >= 0 && nr < size && nc >= 0 && nc < size && !visited[idx]) neighbors.push(idx);
+                        const nr = r+dr, nc = c+dc;
+                        const idx = nr*size + nc;
+                        if (nr>=0 && nr<size && nc>=0 && nc<size && !visited[idx]) neighbors.push(idx);
                     });
                     if (neighbors.length === 0) return path.length >= targetLen ? path : null;
                     curr = neighbors[Math.floor(Math.random() * neighbors.length)];
@@ -236,22 +193,15 @@
                 cell.className = 'cell' + (val ? ' target' : '');
                 cell.textContent = val;
                 cell.style.fontSize = fontSize;
-                
                 const startAction = (e) => {
-                    if(val == "1") {
-                        isDragging = true;
-                        config.currentPath = [i];
-                        drawLine();
-                    } else if (config.currentPath.length > 0 && config.currentPath[config.currentPath.length - 1] === i) {
-                        isDragging = true;
-                    }
+                    if(val == "1") { isDragging = true; config.currentPath = [i]; drawLine(); }
+                    else if (config.currentPath.length > 0 && config.currentPath[config.currentPath.length - 1] === i) isDragging = true;
                 };
                 cell.onmousedown = startAction;
                 cell.ontouchstart = (e) => { e.preventDefault(); startAction(e); };
                 cell.onmouseenter = () => { if(isDragging) extendPath(i); };
                 gridEl.appendChild(cell);
             });
-
             gridEl.ontouchmove = (e) => {
                 if (!isDragging) return;
                 const touch = e.touches[0];
@@ -272,14 +222,10 @@
                 return;
             }
             const last = path[path.length - 1];
-            const r1 = Math.floor(last/config.gridSize), c1 = last%config.gridSize;
-            const r2 = Math.floor(idx/config.gridSize), c2 = idx%config.gridSize;
-            
-            if (Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1) {
+            if (Math.abs(Math.floor(last/config.gridSize) - Math.floor(idx/config.gridSize)) + Math.abs((last%config.gridSize) - (idx%config.gridSize)) === 1) {
                 const targetVal = config.boardData[idx];
                 const lastNumIndex = [...path].reverse().find(p => config.boardData[p] !== '');
                 const lastNum = lastNumIndex !== undefined ? parseInt(config.boardData[lastNumIndex]) : 0;
-                
                 if (targetVal !== '' && parseInt(targetVal) !== lastNum + 1) return;
                 path.push(idx);
                 drawLine();
@@ -309,26 +255,29 @@
 
         function checkWin() {
             const config = gameState[currentLevel];
+            if (config.currentPath.length === 0) return;
             const lastIdx = config.currentPath[config.currentPath.length - 1];
             const currentVal = config.boardData[lastIdx];
             const maxVal = Math.max(...config.boardData.filter(v => v !== ''));
-            
-            // 모든 숫자 칸을 방문했고, 현재 위치가 마지막 숫자인지 확인
-            const visitedAllNumbers = config.boardData.every((val, idx) => {
-                if (val !== '') return config.currentPath.includes(idx);
-                return true;
-            });
+            const visitedAllNumbers = config.boardData.every((val, idx) => val !== '' ? config.currentPath.includes(idx) : true);
 
-            // 클리어 조건: 마지막 숫자에 도달 + 모든 숫자 칸 통과 + 경로 길이가 최소 기준 충족
             if (currentVal == maxVal && visitedAllNumbers && config.currentPath.length >= config.winPath.length) {
                 isDragging = false;
                 setTimeout(() => {
                     alert(`🎉 ${levelNames[currentLevel]} 클리어!`);
                     saveScore(userName, currentLevel);
-                    gameState[currentLevel].boardData = null; // 클리어 시에만 데이터 초기화
+                    gameState[currentLevel].boardData = null;
                     switchLevel(currentLevel);
                 }, 200);
             }
+        }
+
+        function instantClear() {
+            const config = gameState[currentLevel];
+            if (!config.winPath) return;
+            config.currentPath = [...config.winPath]; // 정답 경로 복사
+            drawLine();
+            checkWin();
         }
 
         function saveScore(name, level) {
@@ -345,32 +294,15 @@
                 snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
                 items.sort((a,b) => b.score - a.score).forEach((item, i) => {
                     let medal = (i + 1) + ".";
-                    let colorClass = "";
-                    if (i === 0) { medal = "👑"; colorClass = "gold"; }
-                    else if (i === 1) { medal = "🥈"; colorClass = "silver"; }
-                    else if (i === 2) { medal = "🥉"; colorClass = "bronze"; }
-                    list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${medal} ${item.name}</span><span>${item.score}회</span></div>`;
+                    let colorClass = (i===0) ? "gold" : (i===1) ? "silver" : (i===2) ? "bronze" : "";
+                    list.innerHTML += `<div class="rank-item"><span class="${colorClass}">${(i<3?'👑🥈🥉'[i*2]+[i*2+1]:medal)} ${item.name}</span><span>${item.score}회</span></div>`;
                 });
             });
         }
 
-        function createNewGame() {
-            gameState[currentLevel].boardData = null; // 새로운 문제 버튼 시에만 초기화
-            switchLevel(currentLevel);
-        }
-
-        function resetCurrentLine() {
-            gameState[currentLevel].currentPath = [];
-            isDragging = false;
-            drawLine();
-        }
-
-        function resizeCanvas() {
-            const canvas = document.getElementById('lineCanvas');
-            const grid = document.getElementById('grid');
-            if(grid && canvas) { canvas.width = grid.offsetWidth; canvas.height = grid.offsetHeight; drawLine(); }
-        }
-
+        function createNewGame() { gameState[currentLevel].boardData = null; switchLevel(currentLevel); }
+        function resetCurrentLine() { gameState[currentLevel].currentPath = []; isDragging = false; drawLine(); }
+        function resizeCanvas() { const canvas = document.getElementById('lineCanvas'); const grid = document.getElementById('grid'); if(grid && canvas) { canvas.width = grid.offsetWidth; canvas.height = grid.offsetHeight; drawLine(); } }
         window.onmouseup = window.ontouchend = () => { isDragging = false; };
         window.addEventListener('resize', () => { updateGridSize(); renderBoard(); });
     </script>
