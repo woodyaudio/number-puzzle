@@ -87,7 +87,7 @@
             1: { gridSize: 3, maxNum: 5, minRequired: 3, boardData: null, currentPath: [], targetLen: 9 },
             2: { gridSize: 5, maxNum: 10, minRequired: 7, boardData: null, currentPath: [], targetLen: 25 },
             3: { gridSize: 7, maxNum: 15, minRequired: 12, boardData: null, currentPath: [], targetLen: 49 },
-            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 75 }
+            4: { gridSize: 9, maxNum: 20, minRequired: 17, boardData: null, currentPath: [], targetLen: 81 } // 9x9 전체 방문
         };
 
         function startGame() {
@@ -126,7 +126,6 @@
             isHintUsed = false;
             document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(`btn-lvl${level}`).classList.add('active');
-            
             const btnContainer = document.getElementById('action-buttons');
             let hintBtn = document.getElementById('hint-button');
             if(level === 4) {
@@ -136,10 +135,7 @@
                     hintBtn.onclick = showHint;
                     btnContainer.appendChild(hintBtn);
                 }
-            } else if(hintBtn) {
-                hintBtn.remove();
-            }
-
+            } else if(hintBtn) { hintBtn.remove(); }
             updateGridSize();
             if (!gameState[level].boardData) generateBoardData(level);
             renderBoard();
@@ -157,14 +153,16 @@
             const config = gameState[level];
             const size = config.gridSize;
             const total = size * size;
-            const targetLen = config.targetLen;
+            const targetLen = total; // 이제 무조건 100% 방문 시도
             let finalPath = null;
-            function findLongPath() {
+
+            function findHamiltonianPath() {
                 const visited = new Array(total).fill(false);
                 const path = [];
                 let curr = Math.floor(Math.random() * total);
                 path.push(curr); visited[curr] = true;
-                for (let i = 0; i < 2500; i++) {
+                // 9x9의 경우 완벽한 경로를 찾기 위해 반복 횟수 대폭 상향
+                for (let i = 0; i < 10000; i++) {
                     const r = Math.floor(curr/size), c = curr%size;
                     const neighbors = [];
                     [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
@@ -172,13 +170,26 @@
                         const idx = nr*size + nc;
                         if (nr>=0 && nr<size && nc>=0 && nc<size && !visited[idx]) neighbors.push(idx);
                     });
-                    if (neighbors.length === 0) return path.length >= targetLen ? path : null;
+                    if (neighbors.length === 0) return path.length === targetLen ? path : null;
                     curr = neighbors[Math.floor(Math.random() * neighbors.length)];
                     path.push(curr); visited[curr] = true;
                 }
-                return path.length >= targetLen ? path : null;
+                return path.length === targetLen ? path : null;
             }
-            while (!finalPath) finalPath = findLongPath();
+
+            // '지옥' 난이도는 100% 경로가 나올 때까지 반복 (최대 500번 시도 후 타협)
+            let attempts = 0;
+            while (!finalPath && attempts < 500) {
+                finalPath = findHamiltonianPath();
+                attempts++;
+            }
+            // 만약 500번 안에 81칸을 못 채우면 최소 75칸 이상으로 타협 (무한루프 방지)
+            if(!finalPath) {
+                config.targetLen = (level === 4) ? 75 : total;
+                generateBoardData(level);
+                return;
+            }
+
             config.boardData = new Array(total).fill('');
             config.winPath = finalPath;
             config.lineColor = lineColors[Math.floor(Math.random() * lineColors.length)];
@@ -235,9 +246,7 @@
                 const lastNumIndex = [...path].reverse().find(p => config.boardData[p] !== '');
                 const lastNum = lastNumIndex !== undefined ? parseInt(config.boardData[lastNumIndex]) : 0;
                 if (targetVal !== '' && parseInt(targetVal) !== lastNum + 1) return;
-                path.push(idx);
-                drawLine();
-                checkWin();
+                path.push(idx); drawLine(); checkWin();
             }
         }
 
@@ -247,8 +256,7 @@
             const config = gameState[currentLevel];
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!config.currentPath.length) return;
-            ctx.beginPath();
-            ctx.strokeStyle = config.lineColor;
+            ctx.beginPath(); ctx.strokeStyle = config.lineColor;
             ctx.lineWidth = config.gridSize === 3 ? 30 : config.gridSize === 5 ? 20 : config.gridSize === 7 ? 12 : 8;
             ctx.lineCap = 'round'; ctx.lineJoin = 'round';
             const cells = document.getElementById('grid').children;
@@ -266,60 +274,33 @@
             if(config.currentPath.length === 0) return alert('먼저 1번을 눌러 시작하세요!');
             if(!confirm('힌트를 사용하면 랭킹에 등록되지 않게 됩니다. 실행하시겠습니까?')) return;
             isHintUsed = true;
-
             const path = config.currentPath;
             const lastPoint = path[path.length - 1];
-            
-            // 현재 경로가 정답 경로와 일치하는 마지막 지점 찾기
-            let matchIndex = -1;
-            for(let i = 0; i < config.winPath.length; i++) {
-                if(config.winPath[i] === lastPoint) {
-                    matchIndex = i;
-                    break;
-                }
-            }
-
-            // 만약 현재 위치가 정답 경로상에 없다면, 가장 최근의 정답 일치 지점에서 힌트를 시작하거나 안내
+            let matchIndex = config.winPath.indexOf(lastPoint);
             if(matchIndex === -1) {
-                alert("정답 경로에서 벗어났습니다. 마지막 숫자가 있는 위치부터 힌트를 표시합니다.");
-                // 가장 마지막으로 통과한 숫자의 위치 찾기
-                const lastNumIndex = [...path].reverse().find(p => config.boardData[p] !== '');
-                matchIndex = config.winPath.indexOf(lastNumIndex);
+                const lastNumPoint = [...path].reverse().find(p => config.boardData[p] !== '');
+                matchIndex = config.winPath.indexOf(lastNumPoint);
             }
-
-            // 다음 목표 숫자까지의 경로 추출
             let nextNumPoint = -1;
             for(let i = matchIndex + 1; i < config.winPath.length; i++) {
-                if(config.boardData[config.winPath[i]] !== '') {
-                    nextNumPoint = i;
-                    break;
-                }
+                if(config.boardData[config.winPath[i]] !== '') { nextNumPoint = i; break; }
             }
             if(nextNumPoint === -1) nextNumPoint = config.winPath.length - 1;
-
             const hintSegments = config.winPath.slice(matchIndex, nextNumPoint + 1);
-            
             const canvas = document.getElementById('lineCanvas');
             const ctx = canvas.getContext('2d');
             const cells = document.getElementById('grid').children;
-
             const renderHint = () => {
-                ctx.beginPath();
-                ctx.setLineDash([10, 10]);
-                ctx.strokeStyle = "#e67e22";
-                ctx.lineWidth = 10;
+                ctx.beginPath(); ctx.setLineDash([10, 10]); ctx.strokeStyle = "#e67e22"; ctx.lineWidth = 10;
                 hintSegments.forEach((idx, i) => {
                     const el = cells[idx];
                     const x = el.offsetLeft + el.offsetWidth/2;
                     const y = el.offsetTop + el.offsetHeight/2;
                     if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
                 });
-                ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.stroke(); ctx.setLineDash([]);
             };
-
-            renderHint();
-            setTimeout(() => { drawLine(); }, 3000);
+            renderHint(); setTimeout(() => { drawLine(); }, 3000);
         }
 
         function checkWin() {
@@ -329,29 +310,21 @@
             const currentVal = config.boardData[lastIdx];
             const maxVal = Math.max(...config.boardData.filter(v => v !== ''));
             const visitedAllNumbers = config.boardData.every((val, idx) => val !== '' ? config.currentPath.includes(idx) : true);
-
             if (currentVal == maxVal && visitedAllNumbers && config.currentPath.length >= config.winPath.length) {
                 isDragging = false;
                 setTimeout(() => {
                     alert(`🎉 ${levelNames[currentLevel]} 클리어!` + (isHintUsed ? "\n(힌트 사용으로 랭킹에는 기록되지 않습니다.)" : ""));
                     if(!isHintUsed && userName !== "Dev_Test") saveScore(userName, currentLevel);
-                    gameState[currentLevel].boardData = null;
-                    switchLevel(currentLevel);
+                    gameState[currentLevel].boardData = null; switchLevel(currentLevel);
                 }, 200);
             }
         }
 
         function instantClear() {
             const config = gameState[currentLevel];
-            if (!config.winPath) return;
-            // 1. 경로를 정답 경로로 완벽하게 교체
             config.currentPath = [...config.winPath];
-            // 2. 화면에 선을 즉시 다시 그림
             drawLine();
-            // 3. 약간의 지연 후 클리어 판정 실행 (그려지는 시간을 확보)
-            setTimeout(() => {
-                checkWin();
-            }, 50);
+            setTimeout(() => { checkWin(); }, 100);
         }
 
         function saveScore(name, level) {
@@ -363,12 +336,10 @@
             const list = document.getElementById('rank-list');
             document.getElementById('rank-title').innerText = `${levelNames[currentLevel]} 실시간 랭킹`;
             db.ref(`scores/level${currentLevel}`).orderByValue().limitToLast(10).on('value', snap => {
-                list.innerHTML = '';
-                let items = [];
+                list.innerHTML = ''; let items = [];
                 snap.forEach(child => { if(child.key !== "Dev_Test") items.push({name: child.key, score: child.val()}); });
                 items.sort((a,b) => b.score - a.score).forEach((item, i) => {
-                    let medal = (i + 1) + ".";
-                    let colorClass = "";
+                    let medal = (i + 1) + "."; let colorClass = "";
                     if (i === 0) { medal = "👑"; colorClass = "gold"; }
                     else if (i === 1) { medal = "🥈"; colorClass = "silver"; }
                     else if (i === 2) { medal = "🥉"; colorClass = "bronze"; }
